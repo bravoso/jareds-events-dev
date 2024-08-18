@@ -1,0 +1,40 @@
+{
+	"schemaVersion": 1,
+	"id": "jareds-events",
+	"version": "${version}",
+	"name": "jareds-events",
+	"description": "This is a random events mod created for Jareds Smith by bravoso",
+	"authors": [
+		"bravoso"
+	],
+	"contact": {
+		"homepage": "https://www.fiverr.com/lucaswilluweit/code-your-minecraft-mod",
+		"sources": "https://github.com/FabricMC/fabric-example-mod"
+	},
+	"license": "MIT",
+	"icon": "assets/jareds-events/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.bravoso.jaredsevents.Jaredsevents"
+		],
+		"client": [
+			"com.bravoso.jaredsevents.JaredseventsClient"
+		],
+		"fabric-datagen": [
+			"com.bravoso.jaredsevents.JaredseventsDataGenerator"
+		]
+	},
+	"mixins": [
+		"jareds-events.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.16.2",
+		"minecraft": "~1.20.1",
+		"java": ">=17",
+		"fabric-api": "*"
+	},
+	"suggests": {
+		"another-mod": "*"
+	}
+}
