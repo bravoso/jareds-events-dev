@@ -18,6 +18,8 @@ public class JaredseventsClient implements ClientModInitializer {
     public static final Identifier BUILDABLES = new Identifier("minecraft", "buildables");
     public static final Identifier UNBIND_KEY_PACKET_ID = new Identifier("jaredsevents", "unbind_key");
     public static final Identifier REBIND_KEY_PACKET_ID = new Identifier("jaredsevents", "rebind_key");
+    public static final Identifier LOCK_KEYS_PACKET_ID = new Identifier("jaredsevents", "lock_keys");
+
 
 
     @Override
@@ -25,7 +27,17 @@ public class JaredseventsClient implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(Jaredsevents.UPDATE_ACTION_BAR_PACKET_ID, this::handleUpdateActionBar);
         ClientPlayNetworking.registerGlobalReceiver(UNBIND_KEY_PACKET_ID, this::handleUnbindKey);
         ClientPlayNetworking.registerGlobalReceiver(REBIND_KEY_PACKET_ID, this::handleRebindKey);
+        ClientPlayNetworking.registerGlobalReceiver(LOCK_KEYS_PACKET_ID, (client, handler, buf, responseSender) -> {
+            boolean lockJump = buf.readBoolean();
+            boolean lockForward = buf.readBoolean();
+            boolean lockLeftClick = buf.readBoolean();
 
+            client.execute(() -> {
+                com.bravoso.jaredsevents.client.util.ClientVariables.setJumpLocked(lockJump);
+                com.bravoso.jaredsevents.client.util.ClientVariables.setForwardLocked(lockForward);
+                com.bravoso.jaredsevents.client.util.ClientVariables.setLeftClickLocked(lockLeftClick);
+            });
+        });
     }
 
     private void handleUpdateActionBar(MinecraftClient client, ClientPlayNetworkHandler handler, PacketByteBuf buf, PacketSender responseSender) {

@@ -2,54 +2,54 @@ package com.bravoso.jaredsevents;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.block.BlockState;
-import net.minecraft.block.CraftingTableBlock;
-import net.minecraft.client.util.telemetry.TelemetryEventProperty;
-import net.minecraft.entity.damage.DamageSource;
+import net.minecraft.entity.attribute.EntityAttributeModifier;
+import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.item.*;
 import net.minecraft.network.PacketByteBuf;
-import net.minecraft.registry.RegistryKey;
 import net.minecraft.screen.CraftingScreenHandler;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
+import net.minecraft.util.ActionResult;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
-import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.GameMode;
 import net.minecraft.world.World;
 import net.minecraft.item.Item;
 import net.minecraft.item.ToolItem;
 import net.minecraft.item.SwordItem;
-import net.minecraft.item.AxeItem;
-import net.minecraft.item.PickaxeItem;
-import net.minecraft.item.HoeItem;
-import net.minecraft.item.ShovelItem;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.Items;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.MinecraftServer;
-import net.minecraft.util.math.Vec3d;
 
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.UUID;
 
 
 public class Jaredsevents implements ModInitializer {
     public static final Identifier UPDATE_ACTION_BAR_PACKET_ID = new Identifier("jaredsevents", "update_action_bar");
-    public static final Identifier UNBIND_KEY_PACKET_ID = new Identifier("jaredsevents", "unbind_key");
+    public static final Identifier LOCK_KEYS_PACKET_ID = new Identifier("jaredsevents", "lock_keys");
     private JaredseventsConfig config;
     private int eventDuration;
     private int cooldownDuration;
+    private ServerPlayerEntity player;
 
-
+    private void sendLockKeysPacket(ServerPlayerEntity player, boolean lockJump, boolean lockForward, boolean lockLeftClick) {
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeBoolean(lockJump);
+        buf.writeBoolean(lockForward);
+        buf.writeBoolean(lockLeftClick);
+        ServerPlayNetworking.send(player, LOCK_KEYS_PACKET_ID, buf);
+    }
 
 
     private int tickCounter = 0;
@@ -74,198 +74,241 @@ public class Jaredsevents implements ModInitializer {
         if (remainingTicks > 0) {
             remainingTicks--;
             updateClients(server);
+            if (shouldDropBuildables) {
+                dropBuildableItems(server);
+            }
+            if (shouldDropToolsAndWeapons) {
+                dropToolsAndWeapons(server);
+            }
         } else if (inCooldown) {
-            // If in cooldown, wait until cooldown ends
-            inCooldown = false;
-            applyRandomEffect(server); // Apply a new effect after cooldown ends
+            cooldownDuration--;
+            if (cooldownDuration <= 0) {
+                inCooldown = false;
+                applyRandomEffect(server);
+            }
         } else {
-            // Start cooldown after the event ends
             resetAllPlayers(server);
-            startCooldown();
+            resetMaxHealth(server);
+            resetAllPlayers(server);
+            resetAllKeys(server);
             updateClients(server);
+            stopDroppingBuildables();
+            stopDroppingToolsAndWeapons();
+            startCooldown();
         }
     }
-    private void applyRandomEffect(MinecraftServer server) {
-        int eventToTest = server.getOverworld().random.nextInt(15); // Randomly select an event
 
-        switch (eventToTest) {
-            case 0:
-                currentEventName = "No Inventory Access";
-                unbindKeyForAllPlayers(server, "inventory");
-                scheduleRebindKeyForAllPlayers(server, "inventory", 1200); // Rebind after 60 seconds (1200 ticks)
-                break;
-            case 1:
-                currentEventName = "No Left Clicking";
-                unbindKeyForAllPlayers(server, "attack");
-                scheduleRebindKeyForAllPlayers(server, "attack", 1200);
-                break;
-            case 2:
-                currentEventName = "No Jumping";
-                unbindKeyForAllPlayers(server, "jump");
-                scheduleRebindKeyForAllPlayers(server, "jump", 1200);
-                break;
-            case 3:
-                currentEventName = "No Access to W Key";
-                unbindKeyForAllPlayers(server, "forward");
-                scheduleRebindKeyForAllPlayers(server, "forward", 1200);
-                break;
+    private void startCooldown() {
+        inCooldown = true;
+        cooldownDuration = config.getCooldownDuration(); // Set the cooldown duration from the config
+    }
+
+    private void applyRandomEffect(MinecraftServer server) {
+        int eventToTest = server.getOverworld().random.nextInt(3);
+
+        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+            switch (eventToTest) {
+                case 0:
+                    currentEventName = "No Jumping";
+                    sendLockKeysPacket(player, true, false, false);
+                    break;
+                case 1:
+                    currentEventName = "No Forward Movement";
+                    sendLockKeysPacket(player, false, true, false);
+                    break;
+                case 2:
+                    currentEventName = "No Left Clicking";
+                    sendLockKeysPacket(player, false, false, true);
+                    break;
+            }
+        }
+
+        remainingTicks = eventDuration;
+        updateClients(server);
+    }
+
+    // Remember to reset the key states after the event ends
+    private void resetKeys(ServerPlayerEntity player) {
+        sendLockKeysPacket(player, false, false, false);
+    }
+
+    // Add logic to reset keys when the event duration ends
+    private void resetAllKeys(MinecraftServer server) {
+        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+            resetKeys(player);
+
+//            case 0:
+//                currentEventName = "No Inventory Access";
+//                unbindKeyForAllPlayers(server, "inventory");
+//                scheduleRebindKeyForAllPlayers(server, "inventory", 1200); // Rebind after 60 seconds (1200 ticks)
+//                break;
+
             // Add other cases as needed
-            case 4:
-                currentEventName = "One Heart";
-                setOneHeart(server);
-                break;
-            case 5:
-                currentEventName = "No Mining";
-                for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-                    disableMining(player);
-                }
-                break;
-            case 6:
-                currentEventName = "No Tools or Weapons";
-                dropToolsAndWeapons(server);
-                break;
-            case 7:
-                currentEventName = "No Buildables";
-                dropBuildables(server);
-                break;
+//            case 1:
+//                currentEventName = "One Heart";
+//                setOneHeart(server);
+//                break;
+//            case 5:
+//                currentEventName = "No Mining";
+//                for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+//                    disableMining(player);
+//                }
+//                break;
+//            case 2:
+//                currentEventName = "No Tools or Weapons";
+//                startDroppingToolsAndWeapons();
+//                break;
+//            case 1:
+//                currentEventName = "No Buildables";
+//                startDroppingBuildables();
+//                break;
 //            case 8:
 //                currentEventName = "Without Anything";
 //                dropEverythingAndDisableInventory(server);
 //                break;
-            case 9:
-                currentEventName = "No Nether";
-                killIfInNether(server);
-                break;
-            case 10:
-                currentEventName = "In Adventure Mode";
-                setAdventureMode(server);
-                break;
-            case 11:
-                currentEventName = "Without Sight";
-                applyBlindness(server);
-                break;
-            case 12:
-                currentEventName = "No Touching Blocks";
-                damageIfTouchingBlocks(server);
-                break;
-            case 13:
-                currentEventName = "Without Doing Anything";
-                keepPlayerInPlace(server);
-                break;
-            case 14:
-                currentEventName = "No Crafting";
-                disableCrafting(server);
-                break;
-            default:
-                currentEventName = "No Active Event";
-                break;
+//            case 9:
+//                currentEventName = "No Nether";
+//                killIfInNether(server);
+//                break;
+//            case 3:
+//                currentEventName = "In Adventure Mode";
+//                setAdventureMode(server);
+//                break;
+//            case 11:
+//                currentEventName = "Without Sight";
+//                applyBlindness(server);
+//                break;
+//            case 4:
+//                currentEventName = "No Touching Blocks";
+//                damageIfTouchingBlocks(server);
+//                break;
+//            case 13:
+//                currentEventName = "Without Doing Anything";
+//                keepPlayerInPlace(server);
+//                break;
+//            case 14:
+//                currentEventName = "No Crafting";
+//                disableCrafting(server);
+//                break;
         }
 
         remainingTicks = eventDuration;
         updateClients(server); // Send the update to all clients
     }
-
+    private void lockKeys(ServerPlayerEntity player) {
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeBoolean(true); // For example, true to lock, false to unlock
+        ServerPlayNetworking.send(player, LOCK_KEYS_PACKET_ID, buf);
+    }
     // Event-specific methods
 
-    private void unbindKeyForAllPlayers(MinecraftServer server, String key) {
-        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-            unbindKey(player, key);
-        }
-    }
-
-    private void unbindKey(ServerPlayerEntity player, String key) {
-        PacketByteBuf buf = PacketByteBufs.create();
-        buf.writeString(key);
-        ServerPlayNetworking.send(player, JaredseventsClient.UNBIND_KEY_PACKET_ID, buf);
-        System.out.println("Sent unbind key request for: " + key + " to player: " + player.getName().getString());
-    }
-
-    private void scheduleRebindKeyForAllPlayers(MinecraftServer server, String key, int delay) {
-        final boolean[] isRebound = {false};
-
-        ServerTickEvents.END_SERVER_TICK.register(new ServerTickEvents.EndTick() {
-            int ticks = 0;
-
-            @Override
-            public void onEndTick(MinecraftServer server) {
-                if (!isRebound[0]) {
-                    ticks++;
-                    if (ticks >= delay) {
-                        rebindKeyForAllPlayers(server, key);
-                        isRebound[0] = true;
-                    }
-                }
-            }
-        });
-    }
-
-
-
-    private void rebindKeyForAllPlayers(MinecraftServer server, String key) {
-        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-            rebindKey(player, key);
-        }
-    }
-
-    private void rebindKey(ServerPlayerEntity player, String key) {
-        PacketByteBuf buf = PacketByteBufs.create();
-        buf.writeString(key);
-        ServerPlayNetworking.send(player, JaredseventsClient.REBIND_KEY_PACKET_ID, buf);
-        System.out.println("Sent rebind key request for: " + key + " to player: " + player.getName().getString());
-    }
+    private static final UUID ONE_HEART_UUID = UUID.randomUUID();
 
     private void setOneHeart(MinecraftServer server) {
         for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-            player.setHealth(1.0F);
+            // Remove any existing modifier first to avoid stacking issues
+            player.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH).removeModifier(ONE_HEART_UUID);
+
+            // Apply a modifier to set the maximum health to 1 heart (2 health points)
+            EntityAttributeModifier modifier = new EntityAttributeModifier(ONE_HEART_UUID, "One Heart Modifier", -18.0D, EntityAttributeModifier.Operation.ADDITION);
+            player.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH).addPersistentModifier(modifier);
+
+            // Set the player's health to the new max health (1 heart)
+            player.setHealth(player.getMaxHealth());
+        }
+    }
+
+    private void resetMaxHealth(MinecraftServer server) {
+        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+            // Remove the "one heart" modifier to restore original max health
+            player.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH).removeModifier(ONE_HEART_UUID);
+
+            // Set the player's health to the restored max health
+            player.setHealth(player.getMaxHealth());
         }
     }
 
     private void disableMining(ServerPlayerEntity player) {
         player.addStatusEffect(new StatusEffectInstance(StatusEffects.MINING_FATIGUE, Integer.MAX_VALUE, 3, false, false, true));
     }
-    public boolean isToolOrWeapon(Item item) {
-        // Check if the item is an instance of a known tool or weapon class
-        return item instanceof ToolItem || item instanceof SwordItem ||
-                item instanceof AxeItem || item instanceof PickaxeItem ||
-                item instanceof HoeItem || item instanceof ShovelItem;
+
+    private boolean shouldDropToolsAndWeapons = false; // Flag to indicate if tools and weapons should be dropped
+
+    public void startDroppingToolsAndWeapons() {
+        shouldDropToolsAndWeapons = true; // Set the flag to true when the event starts
     }
 
-    private void dropToolsAndWeapons(MinecraftServer server) {
-        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-            for (int i = 0; i < player.getInventory().size(); i++) {
-                ItemStack stack = player.getInventory().getStack(i);
-                if (isToolOrWeapon(stack.getItem())) {
-                    // Drop the item in the world and clear the slot
-                    player.dropItem(stack.copy(), true);
-                    player.getInventory().setStack(i, ItemStack.EMPTY);
+    public void stopDroppingToolsAndWeapons() {
+        shouldDropToolsAndWeapons = false; // Set the flag to false when the event ends
+    }
+
+    public void dropToolsAndWeapons(MinecraftServer server) {
+        if (shouldDropToolsAndWeapons) { // Only execute if the event is active
+            for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+                // Iterate through the player's inventory
+                for (int i = 0; i < player.getInventory().size(); i++) {
+                    ItemStack stack = player.getInventory().getStack(i);
+                    Item item = stack.getItem();
+
+                    // Check if the item is a tool or weapon
+                    if (isToolOrWeapon(item)) {
+                        // Drop the item in the world
+                        player.dropItem(stack.copy(), true);
+
+                        // Remove the item from the player's inventory
+                        player.getInventory().setStack(i, ItemStack.EMPTY);
+                    }
                 }
             }
         }
     }
 
+    public boolean isToolOrWeapon(Item item) {
+        // Check if the item is a tool (using ToolItem class) or a weapon (using SwordItem class)
+        return item instanceof ToolItem || item instanceof SwordItem;
+    }
 
+
+    private boolean shouldDropBuildables = false; // Flag to indicate if buildable items should be dropped
+
+    public void startDroppingBuildables() {
+        shouldDropBuildables = true; // Set the flag to true when the event starts
+    }
+
+    public void stopDroppingBuildables() {
+        shouldDropBuildables = false; // Set the flag to false when the event ends
+    }
+
+    public void dropBuildableItems(MinecraftServer server) {
+        if (shouldDropBuildables) { // Only execute if the event is active
+            for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+                // Iterate through the player's inventory
+                for (int i = 0; i < player.getInventory().size(); i++) {
+                    ItemStack stack = player.getInventory().getStack(i);
+                    Item item = stack.getItem();
+
+                    // Check if the item is buildable
+                    if (isBuildable(item)) {
+                        // Drop the item in the world
+                        player.dropItem(stack.copy(), true);
+
+                        // Remove the item from the player's inventory
+                        player.getInventory().setStack(i, ItemStack.EMPTY);
+                    }
+                }
+            }
+        }
+    }
 
     public boolean isBuildable(Item item) {
         // Check if the item is a BlockItem or other known buildable item
         return item instanceof BlockItem ||
-                item == Items.STICK || // Example of other buildable items
+                item == Items.STICK ||
                 item == Items.BRICK ||
                 item == Items.GLASS ||
-                item == Items.COBBLESTONE; // Add more items as needed
+                item == Items.COBBLESTONE;
     }
 
-    private void dropBuildables(MinecraftServer server) {
-        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-            for (int i = 0; i < player.getInventory().size(); i++) {
-                ItemStack stack = player.getInventory().getStack(i);
-                if (isBuildable(stack.getItem())) {
-                    // Drop the item in the world and clear the slot
-                    player.dropItem(stack.copy(), true);
-                    player.getInventory().setStack(i, ItemStack.EMPTY);
-                }
-            }
-        }
-    }
 
 
     private void killIfInNether(MinecraftServer server) {
@@ -371,11 +414,6 @@ public class Jaredsevents implements ModInitializer {
         }
     }
 
-    private void startCooldown() {
-        currentEventName = "Freedom Time :)";
-        remainingTicks = cooldownDuration;
-        inCooldown = true;
-    }
 
     private void updateClients(MinecraftServer server) {
         PacketByteBuf buf = PacketByteBufs.create();
