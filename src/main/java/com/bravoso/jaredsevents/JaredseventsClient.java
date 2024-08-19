@@ -2,21 +2,33 @@ package com.bravoso.jaredsevents;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.networking.v1.PacketSender;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.entity.boss.BossBar;
 import net.minecraft.entity.boss.CommandBossBar;
+import net.minecraft.item.Item;
+import net.minecraft.registry.RegistryKey;
+import net.minecraft.registry.tag.TagKey;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.registry.Registry;
-import net.minecraft.item.Item;
-import net.minecraft.item.BlockItem;
-import net.minecraft.world.GameMode;
-import net.minecraft.world.World;
+import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.hud.BossBarHud;
+import net.minecraft.client.network.ClientPlayNetworkHandler;
+import net.minecraft.entity.boss.BossBar;
+import net.minecraft.entity.boss.CommandBossBar;
+import net.minecraft.network.PacketByteBuf;
+import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
+
+
+
+
 
 public class JaredseventsClient implements ClientModInitializer {
-
     private final MinecraftClient client = MinecraftClient.getInstance();
     private int tickCounter = 0;
     private int eventDuration = 1200; // 60 seconds in ticks
@@ -27,13 +39,64 @@ public class JaredseventsClient implements ClientModInitializer {
     private KeyBinding originalAttackKey;
     private KeyBinding originalForwardKey;
     private CommandBossBar bossBar;
+    private CommandBossBar clientBossBar;
     private static final Identifier BOSS_BAR_ID = new Identifier("jaredsevents", "event_boss_bar");
 
-    @Override
+    private static final RegistryKey<Registry<Item>> ITEM_REGISTRY_KEY = RegistryKey.ofRegistry(new Identifier("minecraft", "item"));
+
+    // Now use this RegistryKey to create your TagKeys
+    public static final TagKey<Item> TOOLS = TagKey.of(ITEM_REGISTRY_KEY, new Identifier("minecraft", "tools"));
+    public static final TagKey<Item> WEAPONS = TagKey.of(ITEM_REGISTRY_KEY, new Identifier("minecraft", "weapons"));
+
+
+
+    public void unbindInventory() {
+        if (originalInventoryKey != null) {
+            // Reset to default key; assuming defaultKey is the desired "unbound" state
+            client.options.setKeyCode(originalInventoryKey, originalInventoryKey.getDefaultKey());
+        }
+    }
+
+    private void unbindJump() {
+    }
+    private void unbindForward() {
+    }
+    private void setOneHeart() {
+    }
+    private void disableMining() {
+    }
+    private void dropBuildables() {
+    }
+    private void dropEverythingAndDisableInventory() {
+    }
+    private void killIfInNether() {
+    }
+    private void setAdventureMode() {
+    }
+    private void applyBlindness() {
+    }
+    private void damageIfTouchingBlocks() {
+    }
+    private void keepPlayerInPlace() {
+    }
+    private void disableCrafting() {
+    }
+    private void dropToolsAndWeapons() {
+
+    }
+    private void unbindLeftClick() {
+
+    }// This closing brace was missing.
     public void onInitializeClient() {
-        // Initialize the boss bar
-        bossBar = new CommandBossBar(BOSS_BAR_ID, Text.literal(""));
-        // Note: Boss bars should be handled by server logic, so you may need to reconsider this approach.
+
+
+        // Correctly instantiate the boss bar
+        ClientPlayNetworking.registerGlobalReceiver(new Identifier("jaredsevents", "bossbar_update"), this::handleBossBarUpdate);
+        bossBar = new CommandBossBar(BOSS_BAR_ID, Text.literal("Event Progress"), BossBar.Color.RED, BossBar.Style.PROGRESS);
+        client.inGameHud.getBossBarHud().addBossBar(bossBar);
+        bossBar.setVisible(true); // Ensure the boss bar is visible
+        // Add the boss bar to the HUD in a hypothetical method (you'll need to handle this according to your API version)
+
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player != null) {
@@ -42,7 +105,7 @@ public class JaredseventsClient implements ClientModInitializer {
                 if (remainingTicks > 0) {
                     remainingTicks--;
                     updateBossBar();
-                    if (remainingTicks % 20 == 0) { // Every second
+                    if (remainingTicks % 20 == 0) {
                         updateChat();
                     }
                 } else {
@@ -53,33 +116,50 @@ public class JaredseventsClient implements ClientModInitializer {
         });
     }
 
-    private void applyRandomEffect() {
-        int randomEffect = client.world.random.nextInt(14); // Pick a random effect from 0 to 13
+    private void handleBossBarUpdate(MinecraftClient client, ClientPlayNetworkHandler handler, PacketByteBuf buf, PacketSender responseSender) {
+        // Read data from the packet
+        String text = buf.readString();
+        float progress = buf.readFloat();
 
-        switch (randomEffect) {
-            case 0 -> currentEventName = "No Inventory Access";
-            case 1 -> currentEventName = "No Left Clicking";
-            case 2 -> currentEventName = "No Jumping";
-            case 3 -> currentEventName = "No Access to W Key";
-            case 4 -> currentEventName = "One Heart";
-            case 5 -> currentEventName = "No Mining";
-            case 6 -> currentEventName = "No Tools or Weapons";
-            case 7 -> currentEventName = "No Buildables";
-            case 8 -> currentEventName = "Without Anything";
-            case 9 -> currentEventName = "No Nether";
-            case 10 -> currentEventName = "In Adventure Mode";
-            case 11 -> currentEventName = "Without Sight";
-            case 12 -> currentEventName = "No Touching Blocks";
-            case 13 -> currentEventName = "Without Doing Anything";
-            case 14 -> currentEventName = "No Crafting";
+        // Update or create the boss bar
+        if (clientBossBar == null) {
+            clientBossBar = new CommandBossBar(new Identifier("jaredsevents", "event_boss_bar"), Text.literal(text), BossBar.Color.RED, BossBar.Style.PROGRESS);
+            client.inGameHud.getBossBarHud().addBossBar(clientBossBar);
         }
+
+        clientBossBar.setName(Text.literal(text));
+        clientBossBar.setPercent(progress);
+        clientBossBar.setVisible(true);
+    }
+
+    private void applyRandomEffect() {
+        int randomEffect = client.world.random.nextInt(15); // Adjusted for proper index range with 15 effects
+
+        currentEventName = switch (randomEffect) {
+            case 0 -> "No Inventory Access";
+            case 1 -> "No Left Clicking";
+            case 2 -> "No Jumping";
+            case 3 -> "No Access to W Key";
+            case 4 -> "One Heart";
+            case 5 -> "No Mining";
+            case 6 -> "No Tools or Weapons";
+            case 7 -> "No Buildables";
+            case 8 -> "Without Anything";
+            case 9 -> "No Nether";
+            case 10 -> "In Adventure Mode";
+            case 11 -> "Without Sight";
+            case 12 -> "No Touching Blocks";
+            case 13 -> "Without Doing Anything";
+            case 14 -> "No Crafting";
+            default -> "No Active Event";
+        };
 
         // Start the event duration countdown
         remainingTicks = eventDuration;
         updateBossBar();
         updateChat();
 
-        // Apply the effect
+        // Implement the effects based on the switch statement
         switch (randomEffect) {
             case 0 -> unbindInventory();
             case 1 -> unbindLeftClick();
@@ -99,114 +179,44 @@ public class JaredseventsClient implements ClientModInitializer {
         }
     }
 
+
+
     private void updateBossBar() {
-        bossBar.setName(Text.literal(currentEventName + " - " + (remainingTicks / 20) + "s remaining"));
         bossBar.setPercent(remainingTicks / (float) eventDuration);
+        bossBar.setName(Text.literal(currentEventName + " - " + (remainingTicks / 20) + "s remaining"));
+        if (!bossBar.isVisible()) {
+            bossBar.setVisible(true);
+        }
     }
 
+    private int chatUpdateRate = 100; // Update the chat every 20 ticks (once per second)
+    private int chatUpdateCounter = 0;
+
     private void updateChat() {
-        if (remainingTicks % 20 == 0) {
-            client.player.sendMessage(Text.literal(currentEventName + " - " + (remainingTicks / 20) + " seconds remaining"), true);
+        if (++chatUpdateCounter >= chatUpdateRate) {
+            client.player.sendMessage(Text.literal(currentEventName + " - " + (remainingTicks / 20) + " seconds remaining"), false);
+            chatUpdateCounter = 0; // Reset the counter after sending the message
         }
     }
 
     private void resetAll() {
         if (originalInventoryKey != null) {
-            client.options.inventoryKey.setBoundKey(originalInventoryKey.getDefaultKey());
+            client.options.setKeyCode(originalInventoryKey, originalInventoryKey.getDefaultKey());
         }
         if (originalJumpKey != null) {
-            client.options.jumpKey.setBoundKey(originalJumpKey.getDefaultKey());
+            client.options.setKeyCode(originalJumpKey, originalJumpKey.getDefaultKey());
         }
         if (originalAttackKey != null) {
-            client.options.attackKey.setBoundKey(originalAttackKey.getDefaultKey());
+            client.options.setKeyCode(originalAttackKey, originalAttackKey.getDefaultKey());
         }
         if (originalForwardKey != null) {
-            client.options.forwardKey.setBoundKey(originalForwardKey.getDefaultKey());
+            client.options.setKeyCode(originalForwardKey, originalForwardKey.getDefaultKey());
         }
         client.player.setHealth(client.player.getMaxHealth());
-        client.player.addStatusEffect(new StatusEffectInstance(StatusEffects.BLINDNESS, 0)); // Clears blindness
-
-        // Reset the boss bar
+        client.player.clearStatusEffects();
         bossBar.setName(Text.literal("No Active Event"));
         bossBar.setPercent(0.0F);
-
-        // Restore other states as needed
     }
 
-    private void unbindInventory() {
-        originalInventoryKey = client.options.inventoryKey;
-        client.options.inventoryKey.setBoundKey(null);
-    }
-
-    private void unbindLeftClick() {
-        originalAttackKey = client.options.attackKey;
-        client.options.attackKey.setBoundKey(null);
-    }
-
-    private void unbindJump() {
-        originalJumpKey = client.options.jumpKey;
-        client.options.jumpKey.setBoundKey(null);
-    }
-
-    private void unbindForward() {
-        originalForwardKey = client.options.forwardKey;
-        client.options.forwardKey.setBoundKey(null);
-    }
-
-    private void setOneHeart() {
-        client.player.setHealth(2.0F); // Sets health to one heart
-    }
-
-    private void disableMining() {
-        // Logic to prevent block breaking, potentially through event cancellation
-    }
-
-    private void dropToolsAndWeapons() {
-        client.player.getInventory().main.forEach(itemStack -> {
-            if (itemStack.getItem().isIn(ItemTags.TOOLS) || itemStack.getItem().isIn(ItemTags.WEAPONS)) {
-                client.player.dropItem(itemStack, true);
-            }
-        });
-    }
-
-    private void dropBuildables() {
-        client.player.getInventory().main.forEach(itemStack -> {
-            if (itemStack.getItem() instanceof BlockItem) {
-                client.player.dropItem(itemStack, true);
-            }
-        });
-    }
-
-    private void dropEverythingAndDisableInventory() {
-        client.player.getInventory().clear(); // Drops everything
-        unbindInventory(); // Disables inventory
-    }
-
-    private void killIfInNether() {
-        if (client.player.world.getRegistryKey().equals(World.NETHER)) {
-            client.player.kill();
-        }
-    }
-
-    private void setAdventureMode() {
-        client.player.changeGameMode(GameMode.ADVENTURE);
-    }
-
-    private void applyBlindness() {
-        client.player.addStatusEffect(new StatusEffectInstance(StatusEffects.BLINDNESS, eventDuration, 0));
-    }
-
-    private void damageIfTouchingBlocks() {
-        // Logic to damage player if touching blocks
-    }
-
-    private void keepPlayerInPlace() {
-        client.player.setVelocity(Vec3d.ZERO);
-        client.player.input.movementForward = 0;
-        client.player.input.movementSideways = 0;
-    }
-
-    private void disableCrafting() {
-        // Logic to disable crafting
-    }
+    // Other methods for unbinding keys, applying effects, etc., go here...
 }
