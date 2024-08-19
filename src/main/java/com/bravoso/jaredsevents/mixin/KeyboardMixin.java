@@ -34,11 +34,7 @@ public abstract class KeyboardMixin {
             }
         }
 
-        if (ClientVariables.isLeftClickLocked() && (client.options.attackKey.matchesKey(key, scancode) || client.options.attackKey.isPressed())) {
-            if (client.player != null) {
-                KeyBinding.setKeyPressed(InputUtil.fromKeyCode(key, scancode), false);
-                ci.cancel();
-            }
-        }
+
     }
+    
 }

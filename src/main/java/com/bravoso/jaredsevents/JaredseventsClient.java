@@ -8,22 +8,25 @@ import net.minecraft.client.network.ClientPlayNetworkHandler;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.network.PacketByteBuf;
+import net.minecraft.sound.SoundCategory;
+import net.minecraft.sound.SoundEvent;
+import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 public class JaredseventsClient implements ClientModInitializer {
-    public static final Identifier TOOLS = new Identifier("minecraft", "tools");
-    public static final Identifier WEAPONS = new Identifier("minecraft", "weapons");
-    public static final Identifier BUILDABLES = new Identifier("minecraft", "buildables");
     public static final Identifier UNBIND_KEY_PACKET_ID = new Identifier("jaredsevents", "unbind_key");
     public static final Identifier REBIND_KEY_PACKET_ID = new Identifier("jaredsevents", "rebind_key");
     public static final Identifier LOCK_KEYS_PACKET_ID = new Identifier("jaredsevents", "lock_keys");
+    public static final Identifier PLAY_SOUND_PACKET_ID = new Identifier("jaredsevents", "play_sound");
+
 
 
 
     @Override
     public void onInitializeClient() {
+        ClientPlayNetworking.registerGlobalReceiver(PLAY_SOUND_PACKET_ID, this::handlePlaySoundPacket);
         ClientPlayNetworking.registerGlobalReceiver(Jaredsevents.UPDATE_ACTION_BAR_PACKET_ID, this::handleUpdateActionBar);
         ClientPlayNetworking.registerGlobalReceiver(UNBIND_KEY_PACKET_ID, this::handleUnbindKey);
         ClientPlayNetworking.registerGlobalReceiver(REBIND_KEY_PACKET_ID, this::handleRebindKey);
@@ -39,7 +42,29 @@ public class JaredseventsClient implements ClientModInitializer {
             });
         });
     }
+    private void handlePlaySoundPacket(MinecraftClient client, ClientPlayNetworkHandler handler, PacketByteBuf buf, PacketSender responseSender) {
+        String soundEventName = buf.readString();
 
+        client.execute(() -> {
+            if (client.player != null) {
+                SoundEvent soundEvent = getSoundEventByName(soundEventName);
+                if (soundEvent != null) {
+                    client.player.playSound(soundEvent, SoundCategory.PLAYERS, 1.0F, 1.0F);
+                }
+            }
+        });
+    }
+
+    private SoundEvent getSoundEventByName(String soundEventName) {
+        // Convert the soundEventName string back to a SoundEvent
+        switch (soundEventName) {
+            case "minecraft:entity.witch.ambient":
+                return SoundEvents.ENTITY_WITCH_AMBIENT;
+            // Add more cases for other sound events you want to support
+            default:
+                return null;
+        }
+    }
     private void handleUpdateActionBar(MinecraftClient client, ClientPlayNetworkHandler handler, PacketByteBuf buf, PacketSender responseSender) {
         String eventName = buf.readString();
         int remainingTicks = buf.readInt();
