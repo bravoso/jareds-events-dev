@@ -15,11 +15,7 @@ import net.minecraft.screen.CraftingScreenHandler;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvent;
-import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
-import net.minecraft.util.ActionResult;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
@@ -31,17 +27,8 @@ import net.minecraft.item.ToolItem;
 import net.minecraft.item.SwordItem;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.Items;
-import java.util.Collections;
-import java.util.List;
-import java.util.ArrayList;
 
-
-
-import java.util.Timer;
-import java.util.TimerTask;
-import java.util.UUID;
-
-import static com.bravoso.jaredsevents.JaredseventsClient.LOCK_KEYS_PACKET_ID;
+import java.util.*;
 
 public class Jaredsevents implements ModInitializer {
     public static final Identifier UPDATE_ACTION_BAR_PACKET_ID = new Identifier("jaredsevents", "update_action_bar");
@@ -133,31 +120,6 @@ public class Jaredsevents implements ModInitializer {
     public int getEventDuration() {
         return this.eventDuration;
     }
-    private void handleEventTick(MinecraftServer server) {
-        remainingTicks--;
-        updateClients(server);
-
-        if (shouldDropBuildables) {
-            dropBuildableItems(server);
-        }
-
-        if (shouldDropToolsAndWeapons) {
-            dropToolsAndWeapons(server);
-        }
-    }
-
-
-    private void playCooldownTickSound(MinecraftServer server) {
-        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-            sendPlaySoundPacket(player, "minecraft:entity.experience_orb.pickup");
-        }
-    }
-
-    private void displayFreeTime(MinecraftServer server) {
-        currentEventName = "§l§aFREE TIME";
-        updateClients(server);
-    }
-
 
 
     public void sendPlaySoundPacket(ServerPlayerEntity player, String soundEventName) {
@@ -171,11 +133,6 @@ public class Jaredsevents implements ModInitializer {
         inCooldown = true;
         cooldownDuration = config.getCooldownDuration(); // Set the cooldown duration from the config
     }
-
-
-    private List<Integer> eventList = new ArrayList<>();
-    private int lastEventIndex = -1;
-
 
 
     // Remember to reset the key states after the event ends
@@ -194,13 +151,8 @@ public class Jaredsevents implements ModInitializer {
         remainingTicks = eventDuration;
         updateClients(server); // Send the update to all clients
     }
-    private void lockKeys(ServerPlayerEntity player) {
-        PacketByteBuf buf = PacketByteBufs.create();
-        buf.writeBoolean(true); // For example, true to lock, false to unlock
-        ServerPlayNetworking.send(player, LOCK_KEYS_PACKET_ID, buf);
-    }
 
-            private static final int EFFECT_DURATION = 1200; // Duration in ticks (60 seconds)
+    private static final int EFFECT_DURATION = 1200; // Duration in ticks (60 seconds)
             private static final int EFFECT_AMPLIFIER = 9; // Level 10 (0-based index, so 9 means level 10)
 
             public void applyMiningFatigueAndWeakness(MinecraftServer server){
@@ -226,11 +178,11 @@ public class Jaredsevents implements ModInitializer {
             public void setOneHeart(MinecraftServer server){
                 for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
                     // Remove any existing modifier first to avoid stacking issues
-                    player.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH).removeModifier(ONE_HEART_UUID);
+                    Objects.requireNonNull(player.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH)).removeModifier(ONE_HEART_UUID);
 
                     // Apply a modifier to set the maximum health to 1 heart (2 health points)
                     EntityAttributeModifier modifier = new EntityAttributeModifier(ONE_HEART_UUID, "One Heart Modifier", -18.0D, EntityAttributeModifier.Operation.ADDITION);
-                    player.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH).addPersistentModifier(modifier);
+                    Objects.requireNonNull(player.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH)).addPersistentModifier(modifier);
 
                     // Set the player's health to the new max health (1 heart)
                     player.setHealth(player.getMaxHealth());
@@ -240,7 +192,7 @@ public class Jaredsevents implements ModInitializer {
             private void resetMaxHealth (MinecraftServer server){
                 for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
                     // Remove the "one heart" modifier to restore original max health
-                    player.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH).removeModifier(ONE_HEART_UUID);
+                    Objects.requireNonNull(player.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH)).removeModifier(ONE_HEART_UUID);
 
                     // Set the player's health to the restored max health
                     player.setHealth(player.getMaxHealth());
@@ -409,8 +361,7 @@ public class Jaredsevents implements ModInitializer {
 
             public void disableCrafting(MinecraftServer server){
                 server.getPlayerManager().getPlayerList().forEach(player -> {
-                    if (player.currentScreenHandler instanceof CraftingScreenHandler) {
-                        CraftingScreenHandler craftingHandler = (CraftingScreenHandler) player.currentScreenHandler;
+                    if (player.currentScreenHandler instanceof CraftingScreenHandler craftingHandler) {
                         for (Slot slot : craftingHandler.slots) {
                             if (slot.canTakeItems(player)) {
                                 slot.setStack(ItemStack.EMPTY); // Clear the slot
@@ -438,5 +389,6 @@ public class Jaredsevents implements ModInitializer {
                     ServerPlayNetworking.send(player, UPDATE_ACTION_BAR_PACKET_ID, buf);
                 }
             }
-    }
+
+}
 
