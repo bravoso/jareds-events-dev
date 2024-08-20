@@ -12,12 +12,12 @@ import java.util.Set;
 
 public class CraftingManager {
 
-    private final Jaredsevents plugin;
+    final Jaredsevents craftman;
     private boolean craftingDisabled = false; // Variable to track crafting status
     private final Set<ServerPlayerEntity> notifiedPlayers = new HashSet<>(); // Track players already notified
 
-    public CraftingManager(Jaredsevents plugin) {
-        this.plugin = plugin;
+    public CraftingManager(Jaredsevents craftman) {
+        this.craftman = craftman;
 
         // Register the server tick event to check crafting
         ServerTickEvents.END_SERVER_TICK.register(server -> {

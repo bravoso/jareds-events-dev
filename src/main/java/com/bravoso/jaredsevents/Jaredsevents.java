@@ -5,24 +5,15 @@ import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.block.*;
 import net.minecraft.entity.attribute.EntityAttributeModifier;
 import net.minecraft.entity.attribute.EntityAttributes;
-import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.entity.damage.DamageType;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
-import net.minecraft.fluid.FluidState;
 import net.minecraft.item.*;
 import net.minecraft.network.PacketByteBuf;
-import net.minecraft.registry.RegistryKey;
-import net.minecraft.registry.RegistryKeys;
-import net.minecraft.registry.tag.BlockTags;
-import net.minecraft.registry.tag.FluidTags;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.Identifier;
-import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.GameMode;
 import net.minecraft.world.World;
@@ -315,54 +306,6 @@ public class Jaredsevents implements ModInitializer {
             }
         }
     }
-
-//    public static DamageSource createCustomDamageSource(World world) {
-//        return new DamageSource(world.getRegistryManager().get(RegistryKeys.DAMAGE_TYPE).entryOf(CUSTOM_DAMAGE_TYPE));
-//    }
-//
-//    public void damagePlayersIfTouchingBlocks(MinecraftServer server) {
-//        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-//            System.out.println("Checking block below player: " + player.getName().getString());
-//            BlockPos blockPosBelow = new BlockPos((int) Math.floor(player.getX()), (int) Math.floor(player.getY() - 0.5), (int) Math.floor(player.getZ()));
-//            BlockState blockStateBelow = player.getWorld().getBlockState(blockPosBelow);  // Get BlockState instead of Block
-//            System.out.println("Block state: " + blockStateBelow.getBlock().getName().getString());
-//            try {
-//                // Existing method code
-//            } catch (Exception e) {
-//                e.printStackTrace();
-//            }
-//            // Check if the block below is solid and should cause damage
-//            if (isDamagingBlock(blockStateBelow)) {  // Pass BlockState to the method
-//                float currentHealth = player.getHealth();
-//                if (currentHealth > 2.0F) {
-//                    // Use the custom damage source
-//                    player.damage(createCustomDamageSource(player.getWorld()), 2.0F); // Deal 1 heart of damage
-//                } else {
-//                    player.kill(); // Kill the player if health drops to 0 or below
-//                }
-//            }
-//        }
-//    }
-//
-//
-//
-//    private boolean isDamagingBlock(BlockState blockState) {
-//        FluidState fluidState = blockState.getFluidState();
-//        Block block = blockState.getBlock();
-//
-//        // Check if the block is in one of the non-damaging tags or if the fluid is water
-//        return !(fluidState.isIn(FluidTags.WATER) ||  // Check if fluid is water
-//                fluidState.isIn(FluidTags.LAVA) ||   // Check if fluid is lava (you might want to exclude this if lava is supposed to be damaging)
-//                blockState.isIn(BlockTags.LEAVES) ||  // Check if block is in leaves tag
-//                blockState.isIn(BlockTags.CLIMBABLE) ||  // Check if block is climbable (like vines)
-//                block == Blocks.VINE ||  // Specific block checks
-//                block == Blocks.LADDER ||
-//                block == Blocks.SNOW ||
-//                block == Blocks.CACTUS ||  // Exclude cactus if it shouldn't cause damage
-//                block == Blocks.BUBBLE_COLUMN);
-//    }
-
-
 
     public void keepPlayerInPlace(MinecraftServer server) {
         for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {

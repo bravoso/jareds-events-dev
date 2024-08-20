@@ -10,7 +10,7 @@ import java.util.List;
 public class EventManager {
     private final MinecraftServer server;
     private final Jaredsevents mainClass;
-    private List<Integer> eventList = new ArrayList<>();
+    private final List<Integer> eventList = new ArrayList<>();
     private int lastEventIndex = -1;
     private boolean eventActive = false;
 
@@ -114,10 +114,6 @@ public class EventManager {
                     mainClass.setCurrentEventName("Adventure Mode");
                     mainClass.setAdventureMode(server);
                     break;
-//                case 6:
-//                    mainClass.setCurrentEventName("Damage If Touching Blocks");
-//                    mainClass.damagePlayersIfTouchingBlocks(server);
-//                    break;
                 case 7:
                     mainClass.setCurrentEventName("No Mining");
                     mainClass.disableMining(player);
@@ -142,10 +138,6 @@ public class EventManager {
                     mainClass.setCurrentEventName("Without Sight");
                     mainClass.applyBlindness(server);
                     break;
-//                case 13:
-//                    mainClass.setCurrentEventName("No Touching Blocks");
-//                    mainClass.damagePlayersIfTouchingBlocks(server);
-//                    break;
                 case 14:
                     mainClass.setCurrentEventName("Without Doing Anything");
                     mainClass.keepPlayerInPlace(server);
@@ -193,10 +185,6 @@ public class EventManager {
                     mainClass.setCurrentEventName("Adventure Mode");
                     mainClass.setAdventureMode(server);
                     break;
-//                case "damageiftouchingblocks":
-//                    mainClass.setCurrentEventName("Damage If Touching Blocks");
-//                    mainClass.damagePlayersIfTouchingBlocks(server);
-//                    break;
                 case "nomining":
                     mainClass.setCurrentEventName("No Mining");
                     mainClass.disableMining(player);
