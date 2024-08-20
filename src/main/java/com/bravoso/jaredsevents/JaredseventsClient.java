@@ -14,11 +14,17 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
+
 public class JaredseventsClient implements ClientModInitializer {
     public static final Identifier UNBIND_KEY_PACKET_ID = new Identifier("jaredsevents", "unbind_key");
     public static final Identifier REBIND_KEY_PACKET_ID = new Identifier("jaredsevents", "rebind_key");
     public static final Identifier LOCK_KEYS_PACKET_ID = new Identifier("jaredsevents", "lock_keys");
     public static final Identifier PLAY_SOUND_PACKET_ID = new Identifier("jaredsevents", "play_sound");
+    public static final Identifier UPDATE_COOLDOWN_PACKET_ID = new Identifier("jaredsevents", "update_cooldown");
+    public static final Identifier UPDATE_ACTION_BAR_PACKET_ID = new Identifier("jaredsevents", "update_action_bar");
+    public static final Identifier PLAY_COOLDOWN_START_SOUND_PACKET_ID = new Identifier("jaredsevents", "play_cooldown_start_sound");
+
+
 
 
 
@@ -26,9 +32,11 @@ public class JaredseventsClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         ClientPlayNetworking.registerGlobalReceiver(PLAY_SOUND_PACKET_ID, this::handlePlaySoundPacket);
-        ClientPlayNetworking.registerGlobalReceiver(Jaredsevents.UPDATE_ACTION_BAR_PACKET_ID, this::handleUpdateActionBar);
+        ClientPlayNetworking.registerGlobalReceiver(UPDATE_ACTION_BAR_PACKET_ID, this::handleUpdateActionBar);
+        ClientPlayNetworking.registerGlobalReceiver(UPDATE_COOLDOWN_PACKET_ID, this::handleUpdateCooldown); // Register cooldown packet
         ClientPlayNetworking.registerGlobalReceiver(UNBIND_KEY_PACKET_ID, this::handleUnbindKey);
         ClientPlayNetworking.registerGlobalReceiver(REBIND_KEY_PACKET_ID, this::handleRebindKey);
+        ClientPlayNetworking.registerGlobalReceiver(PLAY_COOLDOWN_START_SOUND_PACKET_ID, this::handleCooldownStartSound);
         ClientPlayNetworking.registerGlobalReceiver(LOCK_KEYS_PACKET_ID, (client, handler, buf, responseSender) -> {
             boolean lockJump = buf.readBoolean();
             boolean lockForward = buf.readBoolean();
@@ -40,7 +48,13 @@ public class JaredseventsClient implements ClientModInitializer {
         });
     }
 
-
+    private void handleCooldownStartSound(MinecraftClient client, ClientPlayNetworkHandler handler, PacketByteBuf buf, PacketSender responseSender) {
+        client.execute(() -> {
+            if (client.player != null) {
+                client.player.playSound(SoundEvents.ENTITY_VILLAGER_YES, SoundCategory.PLAYERS, 1.0F, 1.0F);
+            }
+        });
+    }
     private void handlePlaySoundPacket(MinecraftClient client, ClientPlayNetworkHandler handler, PacketByteBuf buf, PacketSender responseSender) {
         String soundEventName = buf.readString();
 
@@ -95,7 +109,16 @@ public class JaredseventsClient implements ClientModInitializer {
             }
         });
     }
+    private void handleUpdateCooldown(MinecraftClient client, ClientPlayNetworkHandler handler, PacketByteBuf buf, PacketSender responseSender) {
+        int cooldownTicks = buf.readInt(); // Read the cooldown duration in ticks
 
+        String message = "§l§aFREE TIME - " + (cooldownTicks / 20) + " seconds remaining";
+        client.execute(() -> {
+            if (client.player != null) {
+                client.player.sendMessage(Text.literal(message), true); // Display the cooldown in the action bar
+            }
+        });
+    }
     private void handleRebindKey(MinecraftClient client, ClientPlayNetworkHandler handler, PacketByteBuf buf, PacketSender responseSender) {
         String keyToRebind = buf.readString();
         client.execute(() -> {

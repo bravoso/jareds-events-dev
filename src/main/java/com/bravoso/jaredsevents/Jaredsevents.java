@@ -33,7 +33,10 @@ public class Jaredsevents implements ModInitializer {
     public static final Identifier UPDATE_ACTION_BAR_PACKET_ID = new Identifier("jaredsevents", "update_action_bar");
     public static final Identifier LOCK_KEYS_PACKET_ID = new Identifier("jaredsevents", "lock_keys");
     public static final Identifier PLAY_SOUND_PACKET_ID = new Identifier("jaredsevents", "play_sound");
-    public static final RegistryKey<DamageType> CUSTOM_DAMAGE_TYPE = RegistryKey.of(RegistryKeys.DAMAGE_TYPE, new Identifier("jaredsevents", "custom_damage_type"));
+    public static final Identifier UPDATE_COOLDOWN_PACKET_ID = new Identifier("jaredsevents", "update_cooldown");
+    public static final Identifier PLAY_COOLDOWN_START_SOUND_PACKET_ID = new Identifier("jaredsevents", "play_cooldown_start_sound");
+
+
     public CraftingManager craftingManager = new CraftingManager(this);
     public JaredseventsConfig config;
     private int eventDuration;
@@ -86,7 +89,7 @@ public class Jaredsevents implements ModInitializer {
 
                 switch (currentEventName) {
                     case "KeepInPlace" -> keepPlayerInPlace(server);
-                    case "DamageIfTouchingBlocks" -> damagePlayersIfTouchingBlocks(server);
+//                    case "DamageIfTouchingBlocks" -> damagePlayersIfTouchingBlocks(server);
                     case "DisableCrafting" -> disableCraftingForAllPlayers();
                 }
 
@@ -104,25 +107,28 @@ public class Jaredsevents implements ModInitializer {
                 stopDroppingBuildables();
                 enableCraftingForAllPlayers();
                 stopDroppingToolsAndWeapons();
-                startCooldown(); // Start the cooldown after the event ends
+                setSurvivalMode(server);
+                startCooldown(server); // Start the cooldown after the event ends
+                updateClients(server);
+                currentEventName = "§l§aFREE TIME";
+            }
+        }
+
+        // Handle cooldown separately after checking if event is active
+        if (inCooldown) {
+            cooldownDuration--;
+            if (cooldownDuration <= 0) {
+                inCooldown = false;
+                eventManager.applyRandomEffect();
+                System.out.println("Cooldown ended, applying new event."); // Debug statement
+            } else {
                 currentEventName = "§l§aFREE TIME";
                 updateClients(server);
-            } else if (inCooldown) {
-                cooldownDuration--;
-                if (cooldownDuration <= 5 * 20 && cooldownDuration % 20 == 0) {
-                    for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-                        sendPlaySoundPacket(player, "minecraft:entity.experience_orb.pickup");
-                    }
-                }
-                if (cooldownDuration <= 0) {
-                    inCooldown = false;
-                    eventManager.applyRandomEffect();
-                } else {
-                    currentEventName = "§l§aFREE TIME";
-                    updateClients(server);
-                }
             }
-        } else {
+        }
+
+        // If no event is active and not in cooldown, prompt the player to start an event
+        if (!eventManager.isEventActive() && !inCooldown) {
             currentEventName = "§l§aRun /jevent start to begin!";
             updateClients(server);
         }
@@ -161,10 +167,6 @@ public class Jaredsevents implements ModInitializer {
         ServerPlayNetworking.send(player, PLAY_SOUND_PACKET_ID, buf);
     }
 
-    public void startCooldown() {
-        inCooldown = true;
-        cooldownDuration = config.getCooldownDuration(); // Set the cooldown duration from the config
-    }
 
     // Remember to reset the key states after the event ends
     private void resetKeys(ServerPlayerEntity player) {
@@ -314,51 +316,51 @@ public class Jaredsevents implements ModInitializer {
         }
     }
 
-    public static DamageSource createCustomDamageSource(World world) {
-        return new DamageSource(world.getRegistryManager().get(RegistryKeys.DAMAGE_TYPE).entryOf(CUSTOM_DAMAGE_TYPE));
-    }
-
-    public void damagePlayersIfTouchingBlocks(MinecraftServer server) {
-        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-            System.out.println("Checking block below player: " + player.getName().getString());
-            BlockPos blockPosBelow = new BlockPos((int) Math.floor(player.getX()), (int) Math.floor(player.getY() - 0.5), (int) Math.floor(player.getZ()));
-            BlockState blockStateBelow = player.getWorld().getBlockState(blockPosBelow);  // Get BlockState instead of Block
-            System.out.println("Block state: " + blockStateBelow.getBlock().getName().getString());
-            try {
-                // Existing method code
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-            // Check if the block below is solid and should cause damage
-            if (isDamagingBlock(blockStateBelow)) {  // Pass BlockState to the method
-                float currentHealth = player.getHealth();
-                if (currentHealth > 2.0F) {
-                    // Use the custom damage source
-                    player.damage(createCustomDamageSource(player.getWorld()), 2.0F); // Deal 1 heart of damage
-                } else {
-                    player.kill(); // Kill the player if health drops to 0 or below
-                }
-            }
-        }
-    }
-
-
-
-    private boolean isDamagingBlock(BlockState blockState) {
-        FluidState fluidState = blockState.getFluidState();
-        Block block = blockState.getBlock();
-
-        // Check if the block is in one of the non-damaging tags or if the fluid is water
-        return !(fluidState.isIn(FluidTags.WATER) ||  // Check if fluid is water
-                fluidState.isIn(FluidTags.LAVA) ||   // Check if fluid is lava (you might want to exclude this if lava is supposed to be damaging)
-                blockState.isIn(BlockTags.LEAVES) ||  // Check if block is in leaves tag
-                blockState.isIn(BlockTags.CLIMBABLE) ||  // Check if block is climbable (like vines)
-                block == Blocks.VINE ||  // Specific block checks
-                block == Blocks.LADDER ||
-                block == Blocks.SNOW ||
-                block == Blocks.CACTUS ||  // Exclude cactus if it shouldn't cause damage
-                block == Blocks.BUBBLE_COLUMN);
-    }
+//    public static DamageSource createCustomDamageSource(World world) {
+//        return new DamageSource(world.getRegistryManager().get(RegistryKeys.DAMAGE_TYPE).entryOf(CUSTOM_DAMAGE_TYPE));
+//    }
+//
+//    public void damagePlayersIfTouchingBlocks(MinecraftServer server) {
+//        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+//            System.out.println("Checking block below player: " + player.getName().getString());
+//            BlockPos blockPosBelow = new BlockPos((int) Math.floor(player.getX()), (int) Math.floor(player.getY() - 0.5), (int) Math.floor(player.getZ()));
+//            BlockState blockStateBelow = player.getWorld().getBlockState(blockPosBelow);  // Get BlockState instead of Block
+//            System.out.println("Block state: " + blockStateBelow.getBlock().getName().getString());
+//            try {
+//                // Existing method code
+//            } catch (Exception e) {
+//                e.printStackTrace();
+//            }
+//            // Check if the block below is solid and should cause damage
+//            if (isDamagingBlock(blockStateBelow)) {  // Pass BlockState to the method
+//                float currentHealth = player.getHealth();
+//                if (currentHealth > 2.0F) {
+//                    // Use the custom damage source
+//                    player.damage(createCustomDamageSource(player.getWorld()), 2.0F); // Deal 1 heart of damage
+//                } else {
+//                    player.kill(); // Kill the player if health drops to 0 or below
+//                }
+//            }
+//        }
+//    }
+//
+//
+//
+//    private boolean isDamagingBlock(BlockState blockState) {
+//        FluidState fluidState = blockState.getFluidState();
+//        Block block = blockState.getBlock();
+//
+//        // Check if the block is in one of the non-damaging tags or if the fluid is water
+//        return !(fluidState.isIn(FluidTags.WATER) ||  // Check if fluid is water
+//                fluidState.isIn(FluidTags.LAVA) ||   // Check if fluid is lava (you might want to exclude this if lava is supposed to be damaging)
+//                blockState.isIn(BlockTags.LEAVES) ||  // Check if block is in leaves tag
+//                blockState.isIn(BlockTags.CLIMBABLE) ||  // Check if block is climbable (like vines)
+//                block == Blocks.VINE ||  // Specific block checks
+//                block == Blocks.LADDER ||
+//                block == Blocks.SNOW ||
+//                block == Blocks.CACTUS ||  // Exclude cactus if it shouldn't cause damage
+//                block == Blocks.BUBBLE_COLUMN);
+//    }
 
 
 
@@ -378,6 +380,12 @@ public class Jaredsevents implements ModInitializer {
     public void setAdventureMode(MinecraftServer server) {
         for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
             player.changeGameMode(GameMode.ADVENTURE);
+        }
+    }
+
+    public void setSurvivalMode(MinecraftServer server) {
+        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+            player.changeGameMode(GameMode.SURVIVAL);
         }
     }
 
@@ -410,15 +418,39 @@ public class Jaredsevents implements ModInitializer {
             player.setHealth(player.getMaxHealth());
         }
     }
+    public void sendCooldownUpdate(MinecraftServer server) {
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeInt(cooldownDuration); // Send the cooldown duration in ticks
+
+        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+            ServerPlayNetworking.send(player, UPDATE_COOLDOWN_PACKET_ID, buf);
+        }
+    }
 
     public void updateClients(MinecraftServer server) {
         PacketByteBuf buf = PacketByteBufs.create();
         buf.writeString(currentEventName);
         buf.writeInt(remainingTicks);
-        buf.writeInt(eventDuration);
 
         for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
             ServerPlayNetworking.send(player, UPDATE_ACTION_BAR_PACKET_ID, buf);
         }
     }
+    public void startCooldown(MinecraftServer server) {
+        inCooldown = true;
+        cooldownDuration = config.getCooldownDuration(); // Should be 100 ticks
+        remainingTicks = cooldownDuration; // Set remainingTicks to cooldown duration
+        sendCooldownStartSound(server);
+        sendCooldownUpdate(server); // Send the cooldown update to the client
+    }
+    private void sendCooldownStartSound(MinecraftServer server) {
+        PacketByteBuf buf = PacketByteBufs.create(); // No additional data needed
+
+        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+            ServerPlayNetworking.send(player, PLAY_COOLDOWN_START_SOUND_PACKET_ID, buf);
+        }
+    }
+
+
+
 }

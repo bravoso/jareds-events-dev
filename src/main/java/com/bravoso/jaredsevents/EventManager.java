@@ -41,17 +41,32 @@ public class EventManager {
         }
     }
 
-    private void resetEventState() {
-        mainClass.resetAllPlayers(server);
-        mainClass.resetMaxHealth(server);
-        mainClass.resetAllKeys(server);
-        mainClass.updateClients(server);
+    public void resetEventState() {
+        // Reset player-related states
+        mainClass.resetAllPlayers(server);      // Resets all players to their original states (health, etc.)
+        mainClass.resetMaxHealth(server);       // Resets max health to normal
+        mainClass.resetAllKeys(server);         // Resets all keys to their original bindings
+        mainClass.updateClients(server);        // Updates the clients with the current state
         mainClass.stopDroppingBuildables();
+        mainClass.enableCraftingForAllPlayers();
         mainClass.stopDroppingToolsAndWeapons();
-        mainClass.removeEffects(server);
-        mainClass.startCooldown();
+        mainClass.setSurvivalMode(server);
+        mainClass.startCooldown(server); // Start the cooldown after the event ends
+
+        // Stop specific event-related behaviors
+        mainClass.stopDroppingBuildables();     // Stops dropping buildable items
+        mainClass.stopDroppingToolsAndWeapons();// Stops dropping tools and weapons
+
+        // Remove any active effects from players
+        mainClass.removeEffects(server);        // Removes status effects like blindness, mining fatigue, etc.
+
+        // Start the cooldown phase
+        mainClass.startCooldown(server);              // Starts the cooldown and sends the cooldown update packet to clients
+
+        // Mark the event as inactive
         eventActive = false;
     }
+
 
     public void applyRandomEffect() {
         if (eventList.isEmpty()) {
@@ -99,10 +114,10 @@ public class EventManager {
                     mainClass.setCurrentEventName("Adventure Mode");
                     mainClass.setAdventureMode(server);
                     break;
-                case 6:
-                    mainClass.setCurrentEventName("Damage If Touching Blocks");
-                    mainClass.damagePlayersIfTouchingBlocks(server);
-                    break;
+//                case 6:
+//                    mainClass.setCurrentEventName("Damage If Touching Blocks");
+//                    mainClass.damagePlayersIfTouchingBlocks(server);
+//                    break;
                 case 7:
                     mainClass.setCurrentEventName("No Mining");
                     mainClass.disableMining(player);
@@ -127,10 +142,10 @@ public class EventManager {
                     mainClass.setCurrentEventName("Without Sight");
                     mainClass.applyBlindness(server);
                     break;
-                case 13:
-                    mainClass.setCurrentEventName("No Touching Blocks");
-                    mainClass.damagePlayersIfTouchingBlocks(server);
-                    break;
+//                case 13:
+//                    mainClass.setCurrentEventName("No Touching Blocks");
+//                    mainClass.damagePlayersIfTouchingBlocks(server);
+//                    break;
                 case 14:
                     mainClass.setCurrentEventName("Without Doing Anything");
                     mainClass.keepPlayerInPlace(server);
@@ -178,10 +193,10 @@ public class EventManager {
                     mainClass.setCurrentEventName("Adventure Mode");
                     mainClass.setAdventureMode(server);
                     break;
-                case "damageiftouchingblocks":
-                    mainClass.setCurrentEventName("Damage If Touching Blocks");
-                    mainClass.damagePlayersIfTouchingBlocks(server);
-                    break;
+//                case "damageiftouchingblocks":
+//                    mainClass.setCurrentEventName("Damage If Touching Blocks");
+//                    mainClass.damagePlayersIfTouchingBlocks(server);
+//                    break;
                 case "nomining":
                     mainClass.setCurrentEventName("No Mining");
                     mainClass.disableMining(player);
