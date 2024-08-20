@@ -3,7 +3,6 @@ package com.bravoso.jaredsevents.client.util;
 public class ClientVariables {
     private static boolean jumpLocked = false;
     private static boolean forwardLocked = false;
-    private static boolean leftClickLocked = false;
 
     public static boolean isJumpLocked() {
         return jumpLocked;
@@ -21,11 +20,4 @@ public class ClientVariables {
         forwardLocked = locked;
     }
 
-    public static boolean isLeftClickLocked() {
-        return leftClickLocked;
-    }
-
-    public static void setLeftClickLocked(boolean locked) {
-        leftClickLocked = locked;
-    }
 }

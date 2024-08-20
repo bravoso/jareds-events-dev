@@ -101,7 +101,7 @@ public class EventManager {
                     break;
                 case 6:
                     mainClass.setCurrentEventName("Damage If Touching Blocks");
-                    mainClass.damageIfTouchingBlocks(server);
+                    mainClass.damagePlayersIfTouchingBlocks(server);
                     break;
                 case 7:
                     mainClass.setCurrentEventName("No Mining");
@@ -129,7 +129,7 @@ public class EventManager {
                     break;
                 case 13:
                     mainClass.setCurrentEventName("No Touching Blocks");
-                    mainClass.damageIfTouchingBlocks(server);
+                    mainClass.damagePlayersIfTouchingBlocks(server);
                     break;
                 case 14:
                     mainClass.setCurrentEventName("Without Doing Anything");
@@ -180,7 +180,7 @@ public class EventManager {
                     break;
                 case "damageiftouchingblocks":
                     mainClass.setCurrentEventName("Damage If Touching Blocks");
-                    mainClass.damageIfTouchingBlocks(server);
+                    mainClass.damagePlayersIfTouchingBlocks(server);
                     break;
                 case "nomining":
                     mainClass.setCurrentEventName("No Mining");

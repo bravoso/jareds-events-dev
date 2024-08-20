@@ -36,13 +36,11 @@ public class CraftingManager {
     }
 
     private void checkAndCancelCrafting(ServerPlayerEntity player) {
-        if (player.currentScreenHandler instanceof CraftingScreenHandler) {
+        if (player.currentScreenHandler instanceof CraftingScreenHandler craftingScreenHandler) {
             // Block crafting in crafting table
-            CraftingScreenHandler craftingScreenHandler = (CraftingScreenHandler) player.currentScreenHandler;
             craftingScreenHandler.getSlot(0).setStack(ItemStack.EMPTY);
-        } else if (player.currentScreenHandler instanceof PlayerScreenHandler) {
+        } else if (player.currentScreenHandler instanceof PlayerScreenHandler playerScreenHandler) {
             // Block crafting in player inventory (2x2 crafting grid)
-            PlayerScreenHandler playerScreenHandler = (PlayerScreenHandler) player.currentScreenHandler;
             playerScreenHandler.getSlot(0).setStack(ItemStack.EMPTY);
         }
 

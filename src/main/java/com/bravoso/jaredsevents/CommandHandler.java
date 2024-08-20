@@ -12,7 +12,6 @@ import net.minecraft.util.Formatting;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Supplier;
 
 public class CommandHandler {
 

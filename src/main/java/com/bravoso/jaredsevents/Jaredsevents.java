@@ -8,34 +8,33 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.block.*;
 import net.minecraft.entity.attribute.EntityAttributeModifier;
 import net.minecraft.entity.attribute.EntityAttributes;
+import net.minecraft.entity.damage.DamageSource;
+import net.minecraft.entity.damage.DamageType;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
-import net.minecraft.fluid.WaterFluid;
+import net.minecraft.fluid.FluidState;
 import net.minecraft.item.*;
 import net.minecraft.network.PacketByteBuf;
-import net.minecraft.screen.CraftingScreenHandler;
-import net.minecraft.screen.slot.Slot;
+import net.minecraft.registry.RegistryKey;
+import net.minecraft.registry.RegistryKeys;
+import net.minecraft.registry.tag.BlockTags;
+import net.minecraft.registry.tag.FluidTags;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.GameMode;
 import net.minecraft.world.World;
 
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 public class Jaredsevents implements ModInitializer {
     public static final Identifier UPDATE_ACTION_BAR_PACKET_ID = new Identifier("jaredsevents", "update_action_bar");
     public static final Identifier LOCK_KEYS_PACKET_ID = new Identifier("jaredsevents", "lock_keys");
     public static final Identifier PLAY_SOUND_PACKET_ID = new Identifier("jaredsevents", "play_sound");
-    public static final Identifier HIDE_CRAFTING_SLOTS_PACKET_ID = new Identifier("jaredsevents", "hide_crafting_slots");
+    public static final RegistryKey<DamageType> CUSTOM_DAMAGE_TYPE = RegistryKey.of(RegistryKeys.DAMAGE_TYPE, new Identifier("jaredsevents", "custom_damage_type"));
     public CraftingManager craftingManager = new CraftingManager(this);
-    public static boolean craftingDisabled = false; // Global flag for disabling crafting
     public JaredseventsConfig config;
     private int eventDuration;
     private int cooldownDuration;
@@ -45,8 +44,6 @@ public class Jaredsevents implements ModInitializer {
     public int remainingTicks;
     public boolean inCooldown;
     public String currentEventName;
-    private boolean isEventManagerInitialized = false;
-    private boolean eventTriggered = false;
 
 
     public void onInitialize() {
@@ -87,12 +84,10 @@ public class Jaredsevents implements ModInitializer {
                 remainingTicks--;
                 updateClients(server);
 
-                if (currentEventName.equals("KeepInPlace")) {
-                    keepPlayerInPlace(server);
-                } else if (currentEventName.equals("DamageIfTouchingBlocks")) {
-                    damageIfTouchingBlocks(server);
-                } else if (currentEventName.equals("DisableCrafting")) {
-                    disableCraftingForAllPlayers();
+                switch (currentEventName) {
+                    case "KeepInPlace" -> keepPlayerInPlace(server);
+                    case "DamageIfTouchingBlocks" -> damagePlayersIfTouchingBlocks(server);
+                    case "DisableCrafting" -> disableCraftingForAllPlayers();
                 }
 
                 if (shouldDropBuildables) {
@@ -132,13 +127,6 @@ public class Jaredsevents implements ModInitializer {
             updateClients(server);
         }
     }
-
-    private void setSurvivalMode(MinecraftServer server) {
-        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-            player.changeGameMode(GameMode.SURVIVAL);
-        }
-    }
-
 
 
     // Getter and setter methods for currentEventName, remainingTicks, eventDuration, etc.
@@ -325,6 +313,55 @@ public class Jaredsevents implements ModInitializer {
             }
         }
     }
+
+    public static DamageSource createCustomDamageSource(World world) {
+        return new DamageSource(world.getRegistryManager().get(RegistryKeys.DAMAGE_TYPE).entryOf(CUSTOM_DAMAGE_TYPE));
+    }
+
+    public void damagePlayersIfTouchingBlocks(MinecraftServer server) {
+        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+            System.out.println("Checking block below player: " + player.getName().getString());
+            BlockPos blockPosBelow = new BlockPos((int) Math.floor(player.getX()), (int) Math.floor(player.getY() - 0.5), (int) Math.floor(player.getZ()));
+            BlockState blockStateBelow = player.getWorld().getBlockState(blockPosBelow);  // Get BlockState instead of Block
+            System.out.println("Block state: " + blockStateBelow.getBlock().getName().getString());
+            try {
+                // Existing method code
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            // Check if the block below is solid and should cause damage
+            if (isDamagingBlock(blockStateBelow)) {  // Pass BlockState to the method
+                float currentHealth = player.getHealth();
+                if (currentHealth > 2.0F) {
+                    // Use the custom damage source
+                    player.damage(createCustomDamageSource(player.getWorld()), 2.0F); // Deal 1 heart of damage
+                } else {
+                    player.kill(); // Kill the player if health drops to 0 or below
+                }
+            }
+        }
+    }
+
+
+
+    private boolean isDamagingBlock(BlockState blockState) {
+        FluidState fluidState = blockState.getFluidState();
+        Block block = blockState.getBlock();
+
+        // Check if the block is in one of the non-damaging tags or if the fluid is water
+        return !(fluidState.isIn(FluidTags.WATER) ||  // Check if fluid is water
+                fluidState.isIn(FluidTags.LAVA) ||   // Check if fluid is lava (you might want to exclude this if lava is supposed to be damaging)
+                blockState.isIn(BlockTags.LEAVES) ||  // Check if block is in leaves tag
+                blockState.isIn(BlockTags.CLIMBABLE) ||  // Check if block is climbable (like vines)
+                block == Blocks.VINE ||  // Specific block checks
+                block == Blocks.LADDER ||
+                block == Blocks.SNOW ||
+                block == Blocks.CACTUS ||  // Exclude cactus if it shouldn't cause damage
+                block == Blocks.BUBBLE_COLUMN);
+    }
+
+
+
     public void keepPlayerInPlace(MinecraftServer server) {
         for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
             // Cancel the player's movement
@@ -350,67 +387,9 @@ public class Jaredsevents implements ModInitializer {
         }
     }
 
-    public int damageTickCounter = 0; // Counter to control the rate of damage
 
-    public void damageIfTouchingBlocks(MinecraftServer server) {
-        int ticksPerDamage = 20; // Apply damage every second (20 ticks per second)
 
-        if (remainingTicks > 0) {  // Ensure this only runs if the event is still active
-            damageTickCounter++;
 
-            if (damageTickCounter >= ticksPerDamage) {
-                for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-                    // Check if the player's bounding box is touching any solid blocks
-                    if (isTouchingSolidBlocks(player)) {
-                        float currentHealth = player.getHealth();
-                        float damageTaken = 2.0F; // Reduce health by 2 points (1 heart)
-                        if (currentHealth > damageTaken) {
-                            player.setHealth(currentHealth - damageTaken);  // Reduce health
-                        } else {
-                            player.kill();  // Kill the player if health drops to 0 or below
-                        }
-                    }
-                }
-                damageTickCounter = 0; // Reset the counter after applying damage
-            }
-        }
-    }
-
-    private boolean isTouchingSolidBlocks(ServerPlayerEntity player) {
-        Box playerBB = player.getBoundingBox();
-
-        for (int x = (int) Math.floor(playerBB.minX); x <= (int) Math.floor(playerBB.maxX); x++) {
-            for (int y = (int) Math.floor(playerBB.minY); y <= (int) Math.floor(playerBB.maxY); y++) {
-                for (int z = (int) Math.floor(playerBB.minZ); z <= (int) Math.floor(playerBB.maxZ); z++) {
-                    BlockPos pos = new BlockPos(x, y, z);
-                    BlockState blockState = player.getWorld().getBlockState(pos);
-                    Block block = blockState.getBlock();
-
-                    if (isSolidBlock(block)) {
-                        return true;
-                    }
-                }
-            }
-        }
-
-        return false;
-    }
-
-    private boolean isSolidBlock(Block block) {
-        // Define non-solid blocks and specific blocks to exclude from the solid block check
-        return !(block instanceof AirBlock ||
-                block instanceof FluidBlock ||
-                block instanceof StairsBlock ||
-                block instanceof SlabBlock ||
-                block instanceof LeavesBlock ||
-                block == Blocks.VINE ||
-                block == Blocks.LADDER ||
-                block == Blocks.SNOW ||
-                block == Blocks.CACTUS ||
-                block == Blocks.BARRIER ||
-                block == Blocks.END_ROD ||
-                block == Blocks.FLOWER_POT);
-    }
 
 
 
@@ -422,12 +401,6 @@ public class Jaredsevents implements ModInitializer {
     // Method to enable crafting
     public void enableCraftingForAllPlayers() {
         craftingManager.setCraftingDisabled(false);
-    }
-
-    private void sendHideCraftingSlotsPacket(ServerPlayerEntity player) {
-        PacketByteBuf buf = PacketByteBufs.create();
-        // You can add any data to the packet if needed, or leave it empty
-        ServerPlayNetworking.send(player, HIDE_CRAFTING_SLOTS_PACKET_ID, buf);
     }
 
 
