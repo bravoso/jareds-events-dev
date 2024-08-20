@@ -87,11 +87,7 @@ public class CommandHandler {
         ServerCommandSource source = context.getSource();
         String eventName = StringArgumentType.getString(context, "eventName");
 
-        if (!eventManager.isEventActive()) {
-            source.sendError(Text.literal("No active event to trigger a specific event."));
-            return 0;
-        }
-
+        // Attempt to trigger the specific event regardless of whether an event is active
         boolean success = eventManager.triggerSpecificEvent(eventName);
         if (success) {
             source.sendFeedback(() -> Text.literal("Event " + eventName + " triggered!").formatted(Formatting.GREEN), true);

@@ -29,8 +29,9 @@ public class EventManager {
 
     public void startRandomEvent() {
         if (!eventActive) {
-            eventActive = true;
+            mainClass.setEventDuration(mainClass.getConfig().getEventDuration()); // Load duration from config
             applyRandomEffect();
+            eventActive = true;
         }
     }
 
@@ -136,7 +137,7 @@ public class EventManager {
                     break;
                 case 15:
                     mainClass.setCurrentEventName("No Crafting");
-                    mainClass.disableCrafting(server);
+                    mainClass.disableCraftingForAllPlayers();
                     break;
             }
         }
@@ -146,80 +147,73 @@ public class EventManager {
     }
 
     public boolean triggerSpecificEvent(String eventName) {
-        if (eventActive) {
-            for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-                switch (eventName.toLowerCase()) {
-                    case "nojump":
-                        mainClass.setCurrentEventName("No Jumping");
-                        mainClass.sendLockKeysPacket(player, true, false, false);
-                        break;
-                    case "noforward":
-                        mainClass.setCurrentEventName("No Forward Movement");
-                        mainClass.sendLockKeysPacket(player, false, true, false);
-                        break;
-                    case "noleftclick":
-                        mainClass.setCurrentEventName("No Left Clicking");
-                        mainClass.applyMiningFatigueAndWeakness(server);
-                        break;
-                    case "oneheart":
-                        mainClass.setCurrentEventName("One Heart");
-                        mainClass.setOneHeart(server);
-                        break;
-                    case "blindness":
-                        mainClass.setCurrentEventName("Blindness");
-                        mainClass.applyBlindness(server);
-                        break;
-                    case "adventuremode":
-                        mainClass.setCurrentEventName("Adventure Mode");
-                        mainClass.setAdventureMode(server);
-                        break;
-                    case "damageiftouchingblocks":
-                        mainClass.setCurrentEventName("Damage If Touching Blocks");
-                        mainClass.damageIfTouchingBlocks(server);
-                        break;
-                    case "nomining":
-                        mainClass.setCurrentEventName("No Mining");
-                        mainClass.disableMining(player);
-                        break;
-                    case "notoolsorweapons":
-                        mainClass.setCurrentEventName("No Tools or Weapons");
-                        mainClass.startDroppingToolsAndWeapons();
-                        break;
-                    case "nobuildables":
-                        mainClass.setCurrentEventName("No Buildables");
-                        mainClass.startDroppingBuildables();
-                        break;
-                    case "nonether":
-                        mainClass.setCurrentEventName("No Nether");
-                        mainClass.killIfInNether(server);
-                        break;
-                    case "inadventuremode":
-                        mainClass.setCurrentEventName("In Adventure Mode");
-                        mainClass.setAdventureMode(server);
-                        break;
-                    case "withoutsight":
-                        mainClass.setCurrentEventName("Without Sight");
-                        mainClass.applyBlindness(server);
-                        break;
-                    case "notouchingblocks":
-                        mainClass.setCurrentEventName("No Touching Blocks");
-                        mainClass.damageIfTouchingBlocks(server);
-                        break;
-                    case "withoutdoinganything":
-                        mainClass.setCurrentEventName("Without Doing Anything");
-                        mainClass.keepPlayerInPlace(server);
-                        break;
-                    case "nocrafting":
-                        mainClass.setCurrentEventName("No Crafting");
-                        mainClass.disableCrafting(server);
-                        break;
-                    default:
-                        return false;
-                }
-            }
-            return true;
+        if (!eventActive) {
+            mainClass.setEventDuration(mainClass.getConfig().getEventDuration()); // Load duration from config
+            eventActive = true;
         }
-        return false; // Prevent triggering events if no event is active
+
+        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+            switch (eventName.toLowerCase()) {
+                case "nojump":
+                    mainClass.setCurrentEventName("No Jumping");
+                    mainClass.sendLockKeysPacket(player, true, false, false);
+                    break;
+                case "noforward":
+                    mainClass.setCurrentEventName("No Forward Movement");
+                    mainClass.sendLockKeysPacket(player, false, true, false);
+                    break;
+                case "noleftclick":
+                    mainClass.setCurrentEventName("No Left Clicking");
+                    mainClass.applyMiningFatigueAndWeakness(server);
+                    break;
+                case "oneheart":
+                    mainClass.setCurrentEventName("One Heart");
+                    mainClass.setOneHeart(server);
+                    break;
+                case "blindness":
+                    mainClass.setCurrentEventName("Blindness");
+                    mainClass.applyBlindness(server);
+                    break;
+                case "adventuremode":
+                    mainClass.setCurrentEventName("Adventure Mode");
+                    mainClass.setAdventureMode(server);
+                    break;
+                case "damageiftouchingblocks":
+                    mainClass.setCurrentEventName("Damage If Touching Blocks");
+                    mainClass.damageIfTouchingBlocks(server);
+                    break;
+                case "nomining":
+                    mainClass.setCurrentEventName("No Mining");
+                    mainClass.disableMining(player);
+                    break;
+                case "notoolsorweapons":
+                    mainClass.setCurrentEventName("No Tools or Weapons");
+                    mainClass.startDroppingToolsAndWeapons();
+                    break;
+                case "nobuildables":
+                    mainClass.setCurrentEventName("No Buildables");
+                    mainClass.startDroppingBuildables();
+                    break;
+                case "nonether":
+                    mainClass.setCurrentEventName("No Nether");
+                    mainClass.killIfInNether(server);
+                    break;
+                case "withoutdoinganything":
+                    mainClass.setCurrentEventName("Without Doing Anything");
+                    mainClass.keepPlayerInPlace(server);
+                    break;
+                case "nocrafting":
+                    mainClass.setCurrentEventName("No Crafting");
+                    mainClass.disableCraftingForAllPlayers();
+                    break;
+                default:
+                    return false;
+            }
+        }
+
+        mainClass.setRemainingTicks(mainClass.getEventDuration());
+        eventActive = true;  // Ensure the event is marked as active
+        return true;
     }
 
     public boolean isEventActive() {

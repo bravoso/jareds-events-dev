@@ -5,11 +5,12 @@ import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.block.BlockState;
+import net.minecraft.block.*;
 import net.minecraft.entity.attribute.EntityAttributeModifier;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
+import net.minecraft.fluid.WaterFluid;
 import net.minecraft.item.*;
 import net.minecraft.network.PacketByteBuf;
 import net.minecraft.screen.CraftingScreenHandler;
@@ -20,17 +21,22 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.GameMode;
 import net.minecraft.world.World;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 public class Jaredsevents implements ModInitializer {
     public static final Identifier UPDATE_ACTION_BAR_PACKET_ID = new Identifier("jaredsevents", "update_action_bar");
     public static final Identifier LOCK_KEYS_PACKET_ID = new Identifier("jaredsevents", "lock_keys");
     public static final Identifier PLAY_SOUND_PACKET_ID = new Identifier("jaredsevents", "play_sound");
-    private JaredseventsConfig config;
+    public static final Identifier HIDE_CRAFTING_SLOTS_PACKET_ID = new Identifier("jaredsevents", "hide_crafting_slots");
+    public CraftingManager craftingManager = new CraftingManager(this);
+    public static boolean craftingDisabled = false; // Global flag for disabling crafting
+    public JaredseventsConfig config;
     private int eventDuration;
     private int cooldownDuration;
     private EventManager eventManager;
@@ -40,10 +46,12 @@ public class Jaredsevents implements ModInitializer {
     public boolean inCooldown;
     public String currentEventName;
     private boolean isEventManagerInitialized = false;
+    private boolean eventTriggered = false;
 
 
     public void onInitialize() {
         // Load the configuration
+        craftingManager = new CraftingManager(this);
         config = new JaredseventsConfig();
         config.load();
 
@@ -78,6 +86,15 @@ public class Jaredsevents implements ModInitializer {
             if (remainingTicks > 0) {
                 remainingTicks--;
                 updateClients(server);
+
+                if (currentEventName.equals("KeepInPlace")) {
+                    keepPlayerInPlace(server);
+                } else if (currentEventName.equals("DamageIfTouchingBlocks")) {
+                    damageIfTouchingBlocks(server);
+                } else if (currentEventName.equals("DisableCrafting")) {
+                    disableCraftingForAllPlayers();
+                }
+
                 if (shouldDropBuildables) {
                     dropBuildableItems(server);
                 }
@@ -90,13 +107,9 @@ public class Jaredsevents implements ModInitializer {
                 resetMaxHealth(server);
                 resetAllKeys(server);
                 stopDroppingBuildables();
+                enableCraftingForAllPlayers();
                 stopDroppingToolsAndWeapons();
-
-                // Start the cooldown immediately after the event ends
-                startCooldown();
-                inCooldown = true; // Ensure cooldown state is activated
-                remainingTicks = -1; // Prevent immediate re-entry
-
+                startCooldown(); // Start the cooldown after the event ends
                 currentEventName = "§l§aFREE TIME";
                 updateClients(server);
             } else if (inCooldown) {
@@ -120,6 +133,13 @@ public class Jaredsevents implements ModInitializer {
         }
     }
 
+    private void setSurvivalMode(MinecraftServer server) {
+        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+            player.changeGameMode(GameMode.SURVIVAL);
+        }
+    }
+
+
 
     // Getter and setter methods for currentEventName, remainingTicks, eventDuration, etc.
     public void setCurrentEventName(String eventName) {
@@ -130,9 +150,13 @@ public class Jaredsevents implements ModInitializer {
         this.remainingTicks = ticks;
     }
 
+    public void setEventDuration(int duration) {
+        this.eventDuration = duration;
+        this.remainingTicks = duration; // Initialize remaining ticks when setting the event duration
+    }
+
     public int getEventDuration() {
-        // Return the correct duration for the event, e.g., 600 ticks (30 seconds)
-        return config.getEventDuration();  // Or hard-code a value like 600
+        return eventDuration;
     }
 
     public void sendLockKeysPacket(ServerPlayerEntity player, boolean lockJump, boolean lockForward, boolean lockLeftClick) {
@@ -158,7 +182,9 @@ public class Jaredsevents implements ModInitializer {
     private void resetKeys(ServerPlayerEntity player) {
         sendLockKeysPacket(player, false, false, false);
     }
-
+    public JaredseventsConfig getConfig() {
+        return config;
+    }
     // Add logic to reset keys when the event duration ends
     public void resetAllKeys(MinecraftServer server) {
         for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
@@ -299,85 +325,111 @@ public class Jaredsevents implements ModInitializer {
             }
         }
     }
+    public void keepPlayerInPlace(MinecraftServer server) {
+        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+            // Cancel the player's movement
+            player.noClip = true;
+            player.setVelocity(Vec3d.ZERO);
 
+            // Lock the jump, forward, and left click keys
+            sendLockKeysPacket(player, true, true, true);
+
+            // Apply Slowness 100 effect
+            player.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, Integer.MAX_VALUE, 100, false, false, true));
+        }
+    }
     public void setAdventureMode(MinecraftServer server) {
         for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
             player.changeGameMode(GameMode.ADVENTURE);
-            // Create a new task to revert the player back to Survival mode after the delay
-            new Timer().schedule(new TimerTask() {
-                @Override
-                public void run() {
-                    server.execute(() -> player.changeGameMode(GameMode.SURVIVAL));
-                }
-            }, eventDuration * 50L); // Multiply by 50 to convert ticks to milliseconds
         }
     }
 
     public void applyBlindness(MinecraftServer server) {
         for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-            player.addStatusEffect(new StatusEffectInstance(StatusEffects.BLINDNESS, eventDuration, 0, false, false, true));
+            player.addStatusEffect(new StatusEffectInstance(StatusEffects.BLINDNESS, eventDuration, 10, false, false, true));
         }
     }
+
+    public int damageTickCounter = 0; // Counter to control the rate of damage
 
     public void damageIfTouchingBlocks(MinecraftServer server) {
-        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-            // Get the player's bounding box
-            Box playerBox = player.getBoundingBox();
-            // Create a mutable BlockPos to iterate through block positions
-            BlockPos.Mutable blockPos = new BlockPos.Mutable();
-            boolean isTouchingBlock = false;
+        int ticksPerDamage = 20; // Apply damage every second (20 ticks per second)
 
-            for (int x = (int) Math.floor(playerBox.minX); x <= (int) Math.floor(playerBox.maxX); x++) {
-                for (int y = (int) Math.floor(playerBox.minY); y <= (int) Math.floor(playerBox.maxY); y++) {
-                    for (int z = (int) Math.floor(playerBox.minZ); z <= (int) Math.floor(playerBox.maxZ); z++) {
-                        blockPos.set(x, y, z);
-                        BlockState blockState = player.getWorld().getBlockState(blockPos);
-                        // Check if the block is not air (indicating the player is touching a block)
-                        if (!blockState.isAir()) {
-                            isTouchingBlock = true;
-                            break;
+        if (remainingTicks > 0) {  // Ensure this only runs if the event is still active
+            damageTickCounter++;
+
+            if (damageTickCounter >= ticksPerDamage) {
+                for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+                    // Check if the player's bounding box is touching any solid blocks
+                    if (isTouchingSolidBlocks(player)) {
+                        float currentHealth = player.getHealth();
+                        float damageTaken = 2.0F; // Reduce health by 2 points (1 heart)
+                        if (currentHealth > damageTaken) {
+                            player.setHealth(currentHealth - damageTaken);  // Reduce health
+                        } else {
+                            player.kill();  // Kill the player if health drops to 0 or below
                         }
                     }
-                    if (isTouchingBlock) break;
                 }
-                if (isTouchingBlock) break;
-            }
-
-            // If the player is touching a block, apply damage by reducing health
-            if (isTouchingBlock) {
-                float newHealth = player.getHealth() - 1.0F;  // Reduce health by 1 (half a heart)
-                if (newHealth <= 0) {
-                    player.kill();  // Kill the player if health drops to 0 or below
-                } else {
-                    player.setHealth(newHealth);  // Set the player's new health
-                }
+                damageTickCounter = 0; // Reset the counter after applying damage
             }
         }
     }
 
-    public void keepPlayerInPlace(MinecraftServer server) {
-        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-            // Store the player's current position
-            Vec3d currentPosition = player.getPos();
-            // Set the player's position back to the current position to keep them in place
-            player.teleport(currentPosition.x, currentPosition.y, currentPosition.z);
-            // Optionally, you could reset the player's velocity to ensure they don't drift
-            player.setVelocity(Vec3d.ZERO);
-        }
-    }
+    private boolean isTouchingSolidBlocks(ServerPlayerEntity player) {
+        Box playerBB = player.getBoundingBox();
 
-    public void disableCrafting(MinecraftServer server) {
-        server.getPlayerManager().getPlayerList().forEach(player -> {
-            if (player.currentScreenHandler instanceof CraftingScreenHandler craftingHandler) {
-                for (Slot slot : craftingHandler.slots) {
-                    if (slot.canTakeItems(player)) {
-                        slot.setStack(ItemStack.EMPTY); // Clear the slot
+        for (int x = (int) Math.floor(playerBB.minX); x <= (int) Math.floor(playerBB.maxX); x++) {
+            for (int y = (int) Math.floor(playerBB.minY); y <= (int) Math.floor(playerBB.maxY); y++) {
+                for (int z = (int) Math.floor(playerBB.minZ); z <= (int) Math.floor(playerBB.maxZ); z++) {
+                    BlockPos pos = new BlockPos(x, y, z);
+                    BlockState blockState = player.getWorld().getBlockState(pos);
+                    Block block = blockState.getBlock();
+
+                    if (isSolidBlock(block)) {
+                        return true;
                     }
                 }
-                player.sendMessage(Text.literal("Crafting is disabled during this event!"), true);
             }
-        });
+        }
+
+        return false;
     }
+
+    private boolean isSolidBlock(Block block) {
+        // Define non-solid blocks and specific blocks to exclude from the solid block check
+        return !(block instanceof AirBlock ||
+                block instanceof FluidBlock ||
+                block instanceof StairsBlock ||
+                block instanceof SlabBlock ||
+                block instanceof LeavesBlock ||
+                block == Blocks.VINE ||
+                block == Blocks.LADDER ||
+                block == Blocks.SNOW ||
+                block == Blocks.CACTUS ||
+                block == Blocks.BARRIER ||
+                block == Blocks.END_ROD ||
+                block == Blocks.FLOWER_POT);
+    }
+
+
+
+    // Method to disable crafting
+    public void disableCraftingForAllPlayers() {
+        craftingManager.setCraftingDisabled(true);
+    }
+
+    // Method to enable crafting
+    public void enableCraftingForAllPlayers() {
+        craftingManager.setCraftingDisabled(false);
+    }
+
+    private void sendHideCraftingSlotsPacket(ServerPlayerEntity player) {
+        PacketByteBuf buf = PacketByteBufs.create();
+        // You can add any data to the packet if needed, or leave it empty
+        ServerPlayNetworking.send(player, HIDE_CRAFTING_SLOTS_PACKET_ID, buf);
+    }
+
 
     public void resetAllPlayers(MinecraftServer server) {
         for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
