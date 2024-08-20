@@ -29,23 +29,27 @@ public class EventManager {
 
     public void startRandomEvent() {
         if (!eventActive) {
-            applyRandomEffect();
             eventActive = true;
+            applyRandomEffect();
         }
     }
 
     public void stopEvent() {
         if (eventActive) {
-            mainClass.resetAllPlayers(server);
-            mainClass.resetMaxHealth(server);
-            mainClass.resetAllKeys(server);
-            mainClass.updateClients(server);
-            mainClass.stopDroppingBuildables();
-            mainClass.stopDroppingToolsAndWeapons();
-            mainClass.removeEffects(server);
-            mainClass.startCooldown();
-            eventActive = false;
+            resetEventState();
         }
+    }
+
+    private void resetEventState() {
+        mainClass.resetAllPlayers(server);
+        mainClass.resetMaxHealth(server);
+        mainClass.resetAllKeys(server);
+        mainClass.updateClients(server);
+        mainClass.stopDroppingBuildables();
+        mainClass.stopDroppingToolsAndWeapons();
+        mainClass.removeEffects(server);
+        mainClass.startCooldown();
+        eventActive = false;
     }
 
     public void applyRandomEffect() {
@@ -55,6 +59,7 @@ public class EventManager {
 
         int eventToTest = eventList.remove(0);
 
+        // Avoid repeating the last event
         if (eventToTest == lastEventIndex && !eventList.isEmpty()) {
             eventList.add(eventToTest);
             Collections.shuffle(eventList);
@@ -139,34 +144,84 @@ public class EventManager {
     }
 
     public boolean triggerSpecificEvent(String eventName) {
-        switch (eventName.toLowerCase()) {
-            case "nojump":
-                for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-                    mainClass.setCurrentEventName("No Jumping");
-                    mainClass.sendLockKeysPacket(player, true, false, false);
+        if (eventActive) {
+            for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+                switch (eventName.toLowerCase()) {
+                    case "nojump":
+                        mainClass.setCurrentEventName("No Jumping");
+                        mainClass.sendLockKeysPacket(player, true, false, false);
+                        break;
+                    case "noforward":
+                        mainClass.setCurrentEventName("No Forward Movement");
+                        mainClass.sendLockKeysPacket(player, false, true, false);
+                        break;
+                    case "noleftclick":
+                        mainClass.setCurrentEventName("No Left Clicking");
+                        mainClass.applyMiningFatigueAndWeakness(server);
+                        break;
+                    case "oneheart":
+                        mainClass.setCurrentEventName("One Heart");
+                        mainClass.setOneHeart(server);
+                        break;
+                    case "blindness":
+                        mainClass.setCurrentEventName("Blindness");
+                        mainClass.applyBlindness(server);
+                        break;
+                    case "adventuremode":
+                        mainClass.setCurrentEventName("Adventure Mode");
+                        mainClass.setAdventureMode(server);
+                        break;
+                    case "damageiftouchingblocks":
+                        mainClass.setCurrentEventName("Damage If Touching Blocks");
+                        mainClass.damageIfTouchingBlocks(server);
+                        break;
+                    case "nomining":
+                        mainClass.setCurrentEventName("No Mining");
+                        mainClass.disableMining(player);
+                        break;
+                    case "notoolsorweapons":
+                        mainClass.setCurrentEventName("No Tools or Weapons");
+                        mainClass.startDroppingToolsAndWeapons();
+                        break;
+                    case "nobuildables":
+                        mainClass.setCurrentEventName("No Buildables");
+                        mainClass.startDroppingBuildables();
+                        break;
+                    case "nonether":
+                        mainClass.setCurrentEventName("No Nether");
+                        mainClass.killIfInNether(server);
+                        break;
+                    case "inadventuremode":
+                        mainClass.setCurrentEventName("In Adventure Mode");
+                        mainClass.setAdventureMode(server);
+                        break;
+                    case "withoutsight":
+                        mainClass.setCurrentEventName("Without Sight");
+                        mainClass.applyBlindness(server);
+                        break;
+                    case "notouchingblocks":
+                        mainClass.setCurrentEventName("No Touching Blocks");
+                        mainClass.damageIfTouchingBlocks(server);
+                        break;
+                    case "withoutdoinganything":
+                        mainClass.setCurrentEventName("Without Doing Anything");
+                        mainClass.keepPlayerInPlace(server);
+                        break;
+                    case "nocrafting":
+                        mainClass.setCurrentEventName("No Crafting");
+                        mainClass.disableCrafting(server);
+                        break;
+                    default:
+                        return false;
                 }
-                return true;
-            case "noforward":
-                for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-                    mainClass.setCurrentEventName("No Forward Movement");
-                    mainClass.sendLockKeysPacket(player, false, true, false);
-                }
-                return true;
-            case "oneheart":
-                mainClass.setCurrentEventName("One Heart");
-                mainClass.setOneHeart(server);
-                return true;
-            case "blindness":
-                mainClass.setCurrentEventName("Blindness");
-                mainClass.applyBlindness(server);
-                return true;
-            // Add more cases for other events as needed...
-            default:
-                return false;
+            }
+            return true;
         }
+        return false; // Prevent triggering events if no event is active
     }
 
     public boolean isEventActive() {
         return eventActive;
     }
+
 }

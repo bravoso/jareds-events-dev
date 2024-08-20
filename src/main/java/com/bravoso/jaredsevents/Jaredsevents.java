@@ -76,41 +76,48 @@ public class Jaredsevents implements ModInitializer {
             eventManager = new EventManager(server, this);
         }
 
-        tickCounter++;
+        // Only run tasks if an event is active
+        if (eventManager.isEventActive()) {
+            tickCounter++;
 
-        if (remainingTicks > 0) {
-            remainingTicks--;
-            updateClients(server);
-            if (shouldDropBuildables) {
-                dropBuildableItems(server);
-            }
-            if (shouldDropToolsAndWeapons) {
-                dropToolsAndWeapons(server);
-            }
-        } else if (inCooldown) {
-            cooldownDuration--;
-            if (cooldownDuration <= 5 * 20 && cooldownDuration % 20 == 0) {
-                for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-                    sendPlaySoundPacket(player, "minecraft:entity.experience_orb.pickup");
+            if (remainingTicks > 0) {
+                remainingTicks--;
+                updateClients(server);
+                if (shouldDropBuildables) {
+                    dropBuildableItems(server);
                 }
-            }
-            if (cooldownDuration <= 0) {
-                inCooldown = false;
-                eventManager.applyRandomEffect(); // Call the event manager
+                if (shouldDropToolsAndWeapons) {
+                    dropToolsAndWeapons(server);
+                }
+            } else if (inCooldown) {
+                cooldownDuration--;
+                if (cooldownDuration <= 5 * 20 && cooldownDuration % 20 == 0) {
+                    for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+                        sendPlaySoundPacket(player, "minecraft:entity.experience_orb.pickup");
+                    }
+                }
+                if (cooldownDuration <= 0) {
+                    inCooldown = false;
+                    eventManager.applyRandomEffect(); // Call the event manager
+                } else {
+                    currentEventName = "§l§aFREE TIME";
+                    updateClients(server);
+                }
             } else {
                 currentEventName = "§l§aFREE TIME";
+                resetAllPlayers(server);
+                resetMaxHealth(server);
+                resetAllKeys(server);
                 updateClients(server);
+                stopDroppingBuildables();
+                stopDroppingToolsAndWeapons();
+                removeEffects(server);
+                startCooldown();
             }
         } else {
-            currentEventName = "§l§aFREE TIME";
-            resetAllPlayers(server);
-            resetMaxHealth(server);
-            resetAllKeys(server);
+            // If no event is active, display the message to start an event
+            currentEventName = "§l§aRun /jevent start to begin!";
             updateClients(server);
-            stopDroppingBuildables();
-            stopDroppingToolsAndWeapons();
-            removeEffects(server);
-            startCooldown();
         }
     }
 
