@@ -1,16 +1,18 @@
 package com.bravoso.jaredsevents;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.ArrayList;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 public class EventManager {
     private final MinecraftServer server;
+    private final Jaredsevents mainClass;
     private List<Integer> eventList = new ArrayList<>();
     private int lastEventIndex = -1;
-    private Jaredsevents mainClass;
+    private boolean eventActive = false;
 
     public EventManager(MinecraftServer server, Jaredsevents mainClass) {
         this.server = server;
@@ -23,6 +25,27 @@ public class EventManager {
             eventList.add(i);
         }
         Collections.shuffle(eventList);
+    }
+
+    public void startRandomEvent() {
+        if (!eventActive) {
+            applyRandomEffect();
+            eventActive = true;
+        }
+    }
+
+    public void stopEvent() {
+        if (eventActive) {
+            mainClass.resetAllPlayers(server);
+            mainClass.resetMaxHealth(server);
+            mainClass.resetAllKeys(server);
+            mainClass.updateClients(server);
+            mainClass.stopDroppingBuildables();
+            mainClass.stopDroppingToolsAndWeapons();
+            mainClass.removeEffects(server);
+            mainClass.startCooldown();
+            eventActive = false;
+        }
     }
 
     public void applyRandomEffect() {
@@ -113,5 +136,37 @@ public class EventManager {
 
         mainClass.setRemainingTicks(mainClass.getEventDuration());
         mainClass.updateClients(server);
+    }
+
+    public boolean triggerSpecificEvent(String eventName) {
+        switch (eventName.toLowerCase()) {
+            case "nojump":
+                for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+                    mainClass.setCurrentEventName("No Jumping");
+                    mainClass.sendLockKeysPacket(player, true, false, false);
+                }
+                return true;
+            case "noforward":
+                for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+                    mainClass.setCurrentEventName("No Forward Movement");
+                    mainClass.sendLockKeysPacket(player, false, true, false);
+                }
+                return true;
+            case "oneheart":
+                mainClass.setCurrentEventName("One Heart");
+                mainClass.setOneHeart(server);
+                return true;
+            case "blindness":
+                mainClass.setCurrentEventName("Blindness");
+                mainClass.applyBlindness(server);
+                return true;
+            // Add more cases for other events as needed...
+            default:
+                return false;
+        }
+    }
+
+    public boolean isEventActive() {
+        return eventActive;
     }
 }
