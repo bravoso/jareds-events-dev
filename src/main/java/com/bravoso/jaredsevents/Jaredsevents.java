@@ -49,18 +49,15 @@ public class Jaredsevents implements ModInitializer {
 
         // Register tick events
         ServerTickEvents.END_SERVER_TICK.register(server -> {
-            // Initialize EventManager with the server instance
             if (eventManager == null) {
                 eventManager = new EventManager(server, this);
-
-                // Ensure the CommandHandler has the correct EventManager instance
                 if (commandHandler != null) {
                     commandHandler.setEventManager(eventManager);
                 }
             }
 
             // Handle server ticks
-            onServerTick(server, false); // Pass 'false' as the second argument
+            onServerTick(server, false);
         });
 
         // Register the commands
@@ -72,11 +69,9 @@ public class Jaredsevents implements ModInitializer {
 
     public void onServerTick(MinecraftServer server, boolean isCommandTriggered) {
         if (eventManager == null) {
-            // Safety check: Initialize EventManager if not already done
             eventManager = new EventManager(server, this);
         }
 
-        // Only run tasks if an event is active
         if (eventManager.isEventActive()) {
             tickCounter++;
 
@@ -89,6 +84,21 @@ public class Jaredsevents implements ModInitializer {
                 if (shouldDropToolsAndWeapons) {
                     dropToolsAndWeapons(server);
                 }
+            } else if (remainingTicks == 0) {
+                // Event duration has ended, now reset and start cooldown
+                resetAllPlayers(server);
+                resetMaxHealth(server);
+                resetAllKeys(server);
+                stopDroppingBuildables();
+                stopDroppingToolsAndWeapons();
+
+                // Start the cooldown immediately after the event ends
+                startCooldown();
+                inCooldown = true; // Ensure cooldown state is activated
+                remainingTicks = -1; // Prevent immediate re-entry
+
+                currentEventName = "§l§aFREE TIME";
+                updateClients(server);
             } else if (inCooldown) {
                 cooldownDuration--;
                 if (cooldownDuration <= 5 * 20 && cooldownDuration % 20 == 0) {
@@ -98,28 +108,18 @@ public class Jaredsevents implements ModInitializer {
                 }
                 if (cooldownDuration <= 0) {
                     inCooldown = false;
-                    eventManager.applyRandomEffect(); // Call the event manager
+                    eventManager.applyRandomEffect();
                 } else {
                     currentEventName = "§l§aFREE TIME";
                     updateClients(server);
                 }
-            } else {
-                currentEventName = "§l§aFREE TIME";
-                resetAllPlayers(server);
-                resetMaxHealth(server);
-                resetAllKeys(server);
-                updateClients(server);
-                stopDroppingBuildables();
-                stopDroppingToolsAndWeapons();
-                removeEffects(server);
-                startCooldown();
             }
         } else {
-            // If no event is active, display the message to start an event
             currentEventName = "§l§aRun /jevent start to begin!";
             updateClients(server);
         }
     }
+
 
     // Getter and setter methods for currentEventName, remainingTicks, eventDuration, etc.
     public void setCurrentEventName(String eventName) {
@@ -131,7 +131,8 @@ public class Jaredsevents implements ModInitializer {
     }
 
     public int getEventDuration() {
-        return this.eventDuration;
+        // Return the correct duration for the event, e.g., 600 ticks (30 seconds)
+        return config.getEventDuration();  // Or hard-code a value like 600
     }
 
     public void sendLockKeysPacket(ServerPlayerEntity player, boolean lockJump, boolean lockForward, boolean lockLeftClick) {
@@ -184,6 +185,7 @@ public class Jaredsevents implements ModInitializer {
             // Remove Mining Fatigue and Weakness effects
             player.removeStatusEffect(StatusEffects.MINING_FATIGUE);
             player.removeStatusEffect(StatusEffects.WEAKNESS);
+            player.removeStatusEffect(StatusEffects.BLINDNESS);
         }
     }
 

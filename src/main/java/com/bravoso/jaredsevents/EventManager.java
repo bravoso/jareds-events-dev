@@ -59,7 +59,6 @@ public class EventManager {
 
         int eventToTest = eventList.remove(0);
 
-        // Avoid repeating the last event
         if (eventToTest == lastEventIndex && !eventList.isEmpty()) {
             eventList.add(eventToTest);
             Collections.shuffle(eventList);
@@ -67,6 +66,9 @@ public class EventManager {
         }
 
         lastEventIndex = eventToTest;
+
+        // Set the remaining ticks to the duration of the event
+        mainClass.setRemainingTicks(mainClass.getEventDuration());
 
         for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
             mainClass.sendPlaySoundPacket(player, "minecraft:entity.witch.ambient");
